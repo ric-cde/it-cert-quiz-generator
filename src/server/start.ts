@@ -8,10 +8,18 @@ import { openDb } from './db'
 
 const CLIENT_DIR = './dist/client'
 
-export function startServer({ port, serveClient }: { port: number; serveClient: boolean }) {
+export function startServer({
+  port,
+  serveClient,
+  defaultDataDir,
+}: {
+  port: number
+  serveClient: boolean
+  defaultDataDir: string
+}) {
   if (existsSync('.env')) process.loadEnvFile('.env')
 
-  const dataDir = process.env.DATA_DIR ?? './data'
+  const dataDir = process.env.DATA_DIR ?? defaultDataDir
   const db = openDb(resolve(dataDir, 'quiz.db'))
 
   const app = new Hono()

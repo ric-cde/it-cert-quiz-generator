@@ -8,7 +8,7 @@ The build follows the stages in `docs/summary.md`. `docs/spec.md` is the authori
 - **Then keep going until it's finished.** Once I say start, keep looping and building without interruption until the stage is done. Don't stop for routine check-ins or progress reports. The aim is a faster build, with fewer approvals for me and less blocked work for you.
 - **Hold questions until the stage is built.** This includes questions you have at the start of a stage. Normally, wait until I can inspect the work. Until then, make a sensible decision, keep going, and list your decisions and questions in your end-of-stage report.
 - **Work stage by stage.** At the end of a stage, hand it over for review and don't start the next one until I say so. Sometimes I'll ask for several stages at once. In that case, treat them as one run and only stop when they're all done.
-- **Finish with a Git command.** End each stage report with a one-line command that adds, commits and pushes the changes, with a commit message that fits the stage, for me to copy and paste when I'm happy. It must work in PowerShell. Don't run it yourself.
+- **Finish with a Git command.** End each stage report with a one-line command that adds, commits and pushes the changes, with a commit message that fits the stage, for me to copy and paste when I'm happy. It must work in Windows cmd, so join commands with `&&`, not `;`. Don't run it yourself.
 
 ## Project rules
 
@@ -24,6 +24,7 @@ The build follows the stages in `docs/summary.md`. `docs/spec.md` is the authori
 
 ## Look and feel
 
-- Use only the tokens in `src/client/theme.css`. Default Tailwind colours are switched off on purpose.
+- Use only the tokens in the active theme. Default Tailwind colours are switched off on purpose.
+- Themes are saved files in `src/client/themes/`, and one line in `src/client/theme.css` chooses the active one. When I ask to try a new look, copy the current theme to a new file, point that line at the copy and change only the copy, so I can always switch back. Don't edit a saved theme unless I ask you to change that theme itself. A token added to one theme must be added to all of them.
 - Keep green and red for marking answers, so they always mean something.
 - New components and states go in the gallery at `/dev/components`.

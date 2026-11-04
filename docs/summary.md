@@ -84,7 +84,7 @@ Add create, edit and delete for all content, an edit link inside quizzes, source
 **You review:** fix a wrong answer mid-quiz, and confirm its history survives.
 
 ### 9. Readiness
-Add category accuracy with links to practise weak areas, exam date countdown, readiness estimate, and quiz history.
+Add category accuracy with links to practise weak areas, exam date countdown, readiness estimate, quiz history, and marking an exam as passed, which moves it down the home page list.
 
 **You review:** whether the readiness figure seems believable against what you feel you know.
 

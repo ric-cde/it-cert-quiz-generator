@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from './schema'
+import { seed } from './seed'
 
 export type Db = BetterSQLite3Database<typeof schema> & { $client: Database.Database }
 
@@ -21,11 +22,4 @@ export function openDb(file: string): Db {
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
   seed(db)
   return db
-}
-
-/** Safe to run on every start: only adds what's missing. */
-function seed(db: Db) {
-  if (!db.select().from(schema.users).limit(1).get()) {
-    db.insert(schema.users).values({ name: 'Admin', role: 'admin' }).run()
-  }
 }

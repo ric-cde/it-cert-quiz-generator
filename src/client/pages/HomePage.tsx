@@ -1,6 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
-import { buttonClass } from '@/components/Button'
 import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 
@@ -40,9 +38,7 @@ export function HomePage() {
         )}
       </section>
 
-      <Link to="/dev/components" className={`${buttonClass({ variant: 'primary' })} mt-6 hover:text-on-accent`}>
-        Open the component gallery
-      </Link>
+      <p className="mt-6 text-sm text-ink-soft">The data inspector and component gallery are linked in the footer.</p>
     </div>
   )
 }

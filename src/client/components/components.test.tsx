@@ -1,19 +1,29 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnswerOption, answerState } from './AnswerOption'
 import { Button } from './Button'
 import { CodeBlock } from './CodeBlock'
 import { LiveCount, MaxQuestionsPicker, parseMaxQuestions, Segmented, Switch } from './Filters'
 import { Markdown } from './Markdown'
 import { ProgressBar, progressSegments } from './ProgressBar'
+import { QuestionCard } from './QuestionCard'
 import { RandomTile, SourceTile, Tile } from './Tile'
 
 vi.mock('@/lib/highlight', () => ({
   highlight: vi.fn(async (code: string, language?: string) =>
     language === 'java' ? `<pre class="shiki"><code>highlighted:${code}</code></pre>` : null,
   ),
+  resolveLanguage: (language?: string) => (language === 'java' ? 'java' : undefined),
 }))
+
+const syntax = vi.hoisted(() => ({ enabled: true, ready: true, toggle: vi.fn() }))
+vi.mock('@/lib/settings', () => ({ useSyntaxHighlighting: () => syntax }))
+
+beforeEach(() => {
+  Object.assign(syntax, { enabled: true, ready: true })
+  syntax.toggle.mockClear()
+})
 
 describe('answerState', () => {
   it.each([
@@ -70,9 +80,9 @@ describe('AnswerOption', () => {
   )
 
   it.each([
-    ['correct-chosen', 'Your answer · Correct'],
+    ['correct-chosen', 'Marked correct'],
     ['correct-missed', 'Correct answer'],
-    ['wrong-chosen', 'Your answer · Incorrect'],
+    ['wrong-chosen', 'Marked incorrect'],
   ] as const)('says what %s means in words, not only colour', (state, text) => {
     render(
       <AnswerOption kind="single" name="q" state={state}>
@@ -80,6 +90,22 @@ describe('AnswerOption', () => {
       </AnswerOption>,
     )
     expect(screen.getByText(text)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['correct-chosen', true],
+    ['wrong-chosen', true],
+    ['correct-missed', false],
+    ['neutral', false],
+    ['selected', false],
+    ['idle', false],
+  ] as const)('%s shows a "Your answer" tag: %s', (state, shown) => {
+    render(
+      <AnswerOption kind="single" name="q" state={state}>
+        Option A
+      </AnswerOption>,
+    )
+    expect(screen.queryAllByText('Your answer')).toHaveLength(shown ? 1 : 0)
   })
 
   it('shows per-answer text when there is some, and nothing when there is none', () => {
@@ -123,6 +149,34 @@ describe('AnswerOption', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Copy code' }))
     expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it('does not select the answer when its highlighting is toggled', async () => {
+    const onToggle = vi.fn()
+    render(
+      <AnswerOption kind="single" name="q" state="idle" onToggle={onToggle}>
+        <CodeBlock code="int x;" language="java" />
+      </AnswerOption>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Syntax highlighting' }))
+    expect(syntax.toggle).toHaveBeenCalledOnce()
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+})
+
+describe('QuestionCard', () => {
+  it('marks a revealed question, and only then', () => {
+    const { container, rerender } = render(<QuestionCard>Question</QuestionCard>)
+    expect(container.querySelector('[data-revealed]')).toBeNull()
+
+    rerender(<QuestionCard revealed>Question</QuestionCard>)
+    expect(container.querySelector('[data-revealed]')).not.toBeNull()
+  })
+
+  it('puts the footer after the question', () => {
+    const { container } = render(<QuestionCard footer={<button type="button">Flag</button>}>Question</QuestionCard>)
+    const text = container.textContent ?? ''
+    expect(text.indexOf('Question')).toBeLessThan(text.indexOf('Flag'))
   })
 })
 
@@ -242,6 +296,32 @@ describe('CodeBlock', () => {
   it('swaps in highlighted code once ready', async () => {
     render(<CodeBlock code="int x;" language="java" />)
     expect(await screen.findByText('highlighted:int x;')).toBeInTheDocument()
+  })
+
+  it('shows plain code when syntax highlighting is off', async () => {
+    syntax.enabled = false
+    render(<CodeBlock code="int x;" language="java" />)
+    expect(screen.getByText('int x;')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(screen.queryByText('highlighted:int x;')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Syntax highlighting' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('shows the toggle as pressed while highlighting is on', () => {
+    render(<CodeBlock code="int x;" language="java" />)
+    expect(screen.getByRole('button', { name: 'Syntax highlighting' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('has no toggle where it could change nothing', () => {
+    render(<CodeBlock code="plain text" />)
+    expect(screen.queryByRole('button', { name: 'Syntax highlighting' })).not.toBeInTheDocument()
+  })
+
+  it('has no toggle, and plain code, until the setting has loaded', async () => {
+    Object.assign(syntax, { enabled: false, ready: false })
+    render(<CodeBlock code="int x;" language="java" />)
+    expect(screen.queryByRole('button', { name: 'Syntax highlighting' })).not.toBeInTheDocument()
+    expect(screen.getByText('int x;')).toBeInTheDocument()
   })
 
   it('copies the code and confirms', async () => {

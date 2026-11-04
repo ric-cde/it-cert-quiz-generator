@@ -32,7 +32,7 @@
 - **SQLite via `better-sqlite3`:** one file on disk, with backup by copying it.
 - **Drizzle ORM:** typed schema and queries, with generated migrations that preserve data.
 - **Migrations:** run `drizzle-kit generate` on schema changes. The server runs `migrate()` on startup.
-- **Location:** `./data`, overridable with `DATA_DIR`.
+- **Location:** `./data` for `npm start` and `./data/dev` for `npm run dev`, either overridable with `DATA_DIR`.
 
 ## Testing
 

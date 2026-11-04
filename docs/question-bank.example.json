@@ -1,0 +1,75 @@
+{
+  "formatVersion": 1,
+  "exam": "Java SE 21 Developer Professional (1Z0-830)",
+  "source": {
+    "name": "Mock example",
+    "origin": "generated"
+  },
+  "chapters": [
+    {
+      "name": "Mock chapter",
+      "questions": [
+        {
+          "externalId": "mock-1",
+          "type": "single",
+          "category": "Working with Arrays and Collections",
+          "bodyMd": "What does this print?\n\n```java\nvar list = new ArrayList<>(List.of(1, 2, 3));\nlist.remove(1);\nSystem.out.println(list);\n```",
+          "options": [
+            {
+              "bodyMd": "`[1, 3]`",
+              "isCorrect": true,
+              "explanationMd": "Correct! `remove(int)` removes by index, so the element at index 1, the value 2, goes.",
+              "explanationOrigin": "generated"
+            },
+            {
+              "bodyMd": "`[2, 3]`",
+              "isCorrect": false,
+              "explanationMd": "This would remove the value 1. An `int` argument selects `remove(int)`, which removes by index, not by value.",
+              "explanationOrigin": "generated"
+            },
+            {
+              "bodyMd": "The code does not compile",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "externalId": "mock-2",
+          "type": "multi",
+          "category": "Using Object-Oriented Concepts in Java",
+          "bodyMd": "Which statements about records are true? Choose two.",
+          "options": [
+            { "bodyMd": "A record can implement interfaces.", "isCorrect": true },
+            { "bodyMd": "A record is implicitly final.", "isCorrect": true },
+            { "bodyMd": "A record can extend another class.", "isCorrect": false }
+          ]
+        },
+        {
+          "externalId": "mock-3",
+          "type": "single",
+          "category": "Handling Exceptions",
+          "bodyMd": "Which can be caught with a `catch (Exception e)` block?",
+          "lockOptionOrder": true,
+          "options": [
+            { "bodyMd": "`IOException`", "isCorrect": false },
+            { "bodyMd": "`IllegalArgumentException`", "isCorrect": false },
+            { "bodyMd": "All of the above", "isCorrect": true }
+          ]
+        },
+        {
+          "externalId": "mock-4",
+          "type": "free_form",
+          "category": "Managing Concurrent Code Execution",
+          "bodyMd": "When do virtual threads give the most benefit, and why?",
+          "modelAnswerMd": "For workloads with many tasks that spend most of their time blocked, such as waiting on I/O. A blocked virtual thread releases its carrier thread, so a few platform threads can serve a very large number of tasks. They give little benefit to CPU-bound work."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "reference": "Mock chapter, question 5",
+      "reason": "Depends on an image"
+    }
+  ]
+}

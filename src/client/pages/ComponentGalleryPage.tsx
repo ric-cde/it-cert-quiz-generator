@@ -3,14 +3,17 @@ import { type ReactNode, useState } from 'react'
 import { AnswerOption, answerState } from '@/components/AnswerOption'
 import { Button, type ButtonVariant } from '@/components/Button'
 import { CodeBlock } from '@/components/CodeBlock'
+import { DataTable } from '@/components/DataTable'
 import { TextArea, TextField } from '@/components/Field'
-import { LiveCount, type MaxQuestions, MaxQuestionsPicker, Segmented, Switch } from '@/components/Filters'
+import { FilterField, FilterPanel, LiveCount, type MaxQuestions, MaxQuestionsPicker, Segmented, Switch } from '@/components/Filters'
 import { Kbd } from '@/components/Kbd'
 import { Markdown } from '@/components/Markdown'
 import { ProgressBar } from '@/components/ProgressBar'
+import { QuestionCard } from '@/components/QuestionCard'
 import { Spinner } from '@/components/Spinner'
 import { RandomTile, SourceTile, Tile, TileGrid } from '@/components/Tile'
 import { Verdict, type VerdictKind } from '@/components/Verdict'
+import type { InspectorRow, SortDir } from '../../shared/inspector'
 
 const SECTIONS = [
   ['try-it', 'Try it'],
@@ -27,6 +30,7 @@ const SECTIONS = [
   ['markdown', 'Markdown'],
   ['filters', 'Filters'],
   ['fields', 'Text fields'],
+  ['data-tables', 'Data tables'],
 ] as const
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: string; children: ReactNode }) {
@@ -62,7 +66,7 @@ const COLOUR_GROUPS: { name: string; tokens: string[] }[] = [
   { name: 'Correct', tokens: ['correct', 'correct-ink', 'correct-soft'] },
   { name: 'Incorrect', tokens: ['wrong', 'wrong-ink', 'wrong-soft'] },
   { name: 'Attempted, not yet right', tokens: ['amber', 'amber-ink', 'amber-soft'] },
-  { name: 'Code', tokens: ['code-bg', 'code-ink', 'code-soft'] },
+  { name: 'Code', tokens: ['code-bg', 'code-ink', 'code-soft', 'code-comment', 'code-string', 'code-constant', 'code-keyword', 'code-operator', 'code-function', 'code-type'] },
 ]
 
 function Colours() {
@@ -465,7 +469,7 @@ const LONG_LINE = `var message = Stream.of("a", "very", "long", "line", "that", 
 function CodeBlocks() {
   return (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-      <Specimen label="Java, highlighted" className="md:col-span-2">
+      <Specimen label="Java" className="md:col-span-2">
         <CodeBlock code={JAVA_SAMPLE} language="java" />
       </Specimen>
       <Specimen label="Long lines scroll">
@@ -512,22 +516,13 @@ const TYPE = [
 ] as const
 const SORT = [
   { value: 'random', label: 'Random' },
-  { value: 'easiest', label: 'Easiest first' },
-  { value: 'hardest', label: 'Hardest first' },
+  { value: 'easiest', label: 'Easiest 1st' },
+  { value: 'hardest', label: 'Hardest 1st' },
 ] as const
 const FEEDBACK = [
   { value: 'each', label: 'After each question' },
   { value: 'end', label: 'At the end' },
 ] as const
-
-function FilterRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[7rem_minmax(0,1fr)]">
-      <span className="text-sm font-semibold">{label}</span>
-      <div>{children}</div>
-    </div>
-  )
-}
 
 function Filters() {
   const [status, setStatus] = useState<(typeof STATUS)[number]['value']>('all')
@@ -543,32 +538,31 @@ function Filters() {
   return (
     <>
       <Specimen label="Working example, with sample numbers">
-        <div className="space-y-3.5 rounded-lg border border-line bg-surface p-4 shadow-card">
-          <FilterRow label="Status">
+        <FilterPanel footer={<LiveCount selected={selected} available={available} />}>
+          <FilterField label="Status">
             <Segmented label="Status" value={status} options={STATUS} onChange={setStatus} />
-          </FilterRow>
-          <FilterRow label="Type">
+          </FilterField>
+          <FilterField label="Type">
             <Segmented label="Type" value={type} options={TYPE} onChange={setType} />
-          </FilterRow>
-          <FilterRow label="Max questions">
+          </FilterField>
+          <FilterField label="Max questions">
             <MaxQuestionsPicker value={max} onChange={setMax} />
-          </FilterRow>
-          <FilterRow label="Sort">
+          </FilterField>
+          <FilterField label="Sort">
             <Segmented label="Sort" value={sort} options={SORT} onChange={setSort} />
-          </FilterRow>
-          <FilterRow label="Feedback">
+          </FilterField>
+          <FilterField label="Feedback">
             <Segmented label="Feedback" value={feedback} options={FEEDBACK} onChange={setFeedback} />
-          </FilterRow>
-          <FilterRow label="Prioritise">
+          </FilterField>
+          <FilterField label="Prioritise">
             <Switch
               label={prioritise ? 'On' : 'Off'}
               hint="Wording to be revisited in Stage 7"
               checked={prioritise}
               onChange={setPrioritise}
             />
-          </FilterRow>
-          <LiveCount selected={selected} available={available} />
-        </div>
+          </FilterField>
+        </FilterPanel>
       </Specimen>
       <SpecimenGrid>
         <Specimen label="Live count, capped">
@@ -656,6 +650,66 @@ System.out.println(list);
   },
 ]
 
+const TABLE_SAMPLE: InspectorRow[] = [
+  { id: 1, bodyMd: 'A short value', isCorrect: true, flaggedAt: null, questionIds: [1, 2, 3] },
+  {
+    id: 2,
+    bodyMd:
+      'A long value folds away, so one big question or draft cannot push the rest of the table off the screen. Open it to read everything that was stored.',
+    isCorrect: false,
+    flaggedAt: '2026-11-04T09:30:00.000Z',
+    questionIds: [],
+  },
+]
+
+function DataTables() {
+  const [sort, setSort] = useState('id')
+  const [dir, setDir] = useState<SortDir>('asc')
+  const [page, setPage] = useState(1)
+  const columns = Object.keys(TABLE_SAMPLE[0]!)
+
+  const rows = [...TABLE_SAMPLE].sort((a, b) => {
+    const order = String(a[sort]).localeCompare(String(b[sort]), undefined, { numeric: true })
+    return dir === 'asc' ? order : -order
+  })
+
+  return (
+    <>
+      <Specimen label="With rows: null, booleans, JSON and long text. Click a heading to sort.">
+        <DataTable
+          label="Sample rows"
+          columns={columns}
+          rows={rows}
+          sort={sort}
+          dir={dir}
+          onSort={(column, nextDir) => {
+            setSort(column)
+            setDir(nextDir)
+          }}
+          page={page}
+          pageCount={3}
+          total={42}
+          onPage={setPage}
+        />
+      </Specimen>
+      <Specimen label="Empty">
+        <DataTable
+          label="Empty sample"
+          columns={columns}
+          rows={[]}
+          sort="id"
+          dir="asc"
+          onSort={() => {}}
+          page={1}
+          pageCount={1}
+          total={0}
+          onPage={() => {}}
+        />
+      </Specimen>
+    </>
+  )
+}
+
 function TryIt() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [chosen, setChosen] = useState<number[]>([])
@@ -679,23 +733,25 @@ function TryIt() {
   const verdict: VerdictKind = outcome === 'revealed' ? 'revealed' : isRight ? 'correct' : 'incorrect'
 
   return (
-    <div className="mx-auto max-w-2xl rounded-lg border border-line bg-surface p-5 shadow-card sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="mb-1.5 text-xs text-ink-soft">
-            Question {questionIndex + 1} of {DEMO_QUESTIONS.length} · Sample
-          </p>
-          <ProgressBar
-            label="Quiz progress"
-            correct={questionIndex + (locked ? 1 : 0)}
-            incorrect={0}
-            total={DEMO_QUESTIONS.length}
-            showPercent={false}
-          />
-        </div>
+    <QuestionCard
+      revealed={outcome === 'revealed'}
+      footer={
         <Button size="sm" variant="ghost">
           <Flag className="size-4" aria-hidden="true" /> Flag
         </Button>
+      }
+    >
+      <div className="mb-4">
+        <p className="mb-1.5 text-xs text-ink-soft">
+          Question {questionIndex + 1} of {DEMO_QUESTIONS.length} · Sample
+        </p>
+        <ProgressBar
+          label="Quiz progress"
+          correct={questionIndex + (locked ? 1 : 0)}
+          incorrect={0}
+          total={DEMO_QUESTIONS.length}
+          showPercent={false}
+        />
       </div>
 
       <Markdown className="text-lg">{question.body}</Markdown>
@@ -740,7 +796,7 @@ function TryIt() {
           </>
         )}
       </div>
-    </div>
+    </QuestionCard>
   )
 }
 
@@ -822,7 +878,7 @@ export function ComponentGalleryPage() {
               ))}
             </div>
           </Section>
-          <Section id="code" title="Code blocks" intro="Press the copy icon to see its confirmation.">
+          <Section id="code" title="Code blocks" intro="Press the copy icon to see its confirmation. The code icon turns syntax highlighting on and off everywhere, and the choice is saved.">
             <CodeBlocks />
           </Section>
           <Section id="markdown" title="Markdown" intro="All question and option text. Raw HTML is dropped.">
@@ -835,6 +891,9 @@ export function ComponentGalleryPage() {
           </Section>
           <Section id="fields" title="Text fields">
             <Fields />
+          </Section>
+          <Section id="data-tables" title="Data tables" intro="Used by the data inspector.">
+            <DataTables />
           </Section>
         </div>
       </div>

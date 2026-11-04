@@ -37,10 +37,16 @@ const containerByState: Record<AnswerState, string> = {
   neutral: 'border-line bg-surface',
 }
 
-const tagByState: Partial<Record<AnswerState, { text: string; className: string }>> = {
-  'correct-chosen': { text: 'Your answer · Correct', className: 'text-correct-ink' },
-  'correct-missed': { text: 'Correct answer', className: 'text-correct-ink' },
-  'wrong-chosen': { text: 'Your answer · Incorrect', className: 'text-wrong-ink' },
+/** The mark and colour show this on screen. These words are for screen readers. */
+const meaningByState: Partial<Record<AnswerState, string>> = {
+  'correct-chosen': 'Marked correct',
+  'correct-missed': 'Correct answer',
+  'wrong-chosen': 'Marked incorrect',
+}
+
+const yourAnswerTagByState: Partial<Record<AnswerState, string>> = {
+  'correct-chosen': 'border-correct text-correct-ink',
+  'wrong-chosen': 'border-wrong text-wrong-ink',
 }
 
 function Marker({ state, kind }: { state: AnswerState; kind: 'single' | 'multi' }) {
@@ -98,7 +104,8 @@ export function AnswerOption({
 }) {
   const interactive = state === 'idle' || state === 'selected'
   const inactive = !interactive || disabled
-  const tag = tagByState[state]
+  const meaning = meaningByState[state]
+  const yourAnswerTag = yourAnswerTagByState[state]
 
   return (
     <label
@@ -126,7 +133,7 @@ export function AnswerOption({
         </span>
         <span className={clsx('min-w-0 flex-1', state === 'neutral' && 'text-ink-soft')}>
           {children}
-          {tag && <span className={clsx('mt-1 block text-xs font-bold', tag.className)}>{tag.text}</span>}
+          {meaning && <span className="sr-only">{meaning}</span>}
           {explanation && (
             <span className="mt-1.5 block animate-rise text-sm text-ink-soft">{explanation}</span>
           )}
@@ -134,6 +141,16 @@ export function AnswerOption({
         {shortcut !== undefined && interactive && (
           <span className="hidden flex-none sm:block">
             <Kbd>{shortcut}</Kbd>
+          </span>
+        )}
+        {yourAnswerTag && (
+          <span
+            className={clsx(
+              'flex-none rounded-full border bg-surface px-2 py-px text-xs font-bold whitespace-nowrap',
+              yourAnswerTag,
+            )}
+          >
+            Your answer
           </span>
         )}
       </span>

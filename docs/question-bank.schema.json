@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional location of this schema, which lets editors check the file."
+    },
+    "formatVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "The version of this format. Always 1."
+    },
+    "exam": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "The name of the exam, exactly as it appears in the app."
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Where the questions come from, such as \"Boyarsky study guide\". Each source gets its own quality rating in the app."
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "upload",
+            "generated"
+          ],
+          "description": "\"upload\" for questions converted from existing material. \"generated\" for questions an AI wrote."
+        }
+      },
+      "required": [
+        "name",
+        "origin"
+      ],
+      "additionalProperties": false,
+      "description": "A single source. Use one file per source."
+    },
+    "chapters": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "\\S",
+            "description": "A chapter, or any other grouping within the source, such as \"Chapter 3\" or \"Practice exam 1\"."
+          },
+          "questions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "externalId": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "A stable ID, unique within this source, such as \"boyarsky-ch3-q12\". Loading a file again updates the question with the same ID and keeps its history, so never reuse an ID for a different question."
+                    },
+                    "category": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The category this question belongs to. Must exactly match a name from the exam's category list."
+                    },
+                    "bodyMd": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The question in Markdown, with code in fenced blocks that name the language, such as ```java. Include instructions such as \"Choose two.\" Don't include the question number or the options."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "single",
+                      "description": "Exactly one correct option, shown as radio buttons."
+                    },
+                    "lockOptionOrder": {
+                      "type": "boolean",
+                      "description": "Set to true only if the option order matters, for example with \"All of the above\". Otherwise leave it out, and options are shuffled."
+                    },
+                    "options": {
+                      "minItems": 2,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bodyMd": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\", because options get shuffled."
+                          },
+                          "isCorrect": {
+                            "type": "boolean",
+                            "description": "Whether this option is a correct answer."
+                          },
+                          "explanationMd": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "Optional text shown with this option after answering. For a wrong option, say why it is wrong in 1-3 sentences. For a correct option, say why it is right in 1-2 sentences. Leave it out rather than inventing filler."
+                          },
+                          "explanationOrigin": {
+                            "type": "string",
+                            "enum": [
+                              "source",
+                              "generated"
+                            ],
+                            "description": "Who wrote explanationMd. \"source\" (assumed if left out) means it came from the source material. \"generated\" means an AI wrote it, so the app may later replace it when asked."
+                          }
+                        },
+                        "required": [
+                          "bodyMd",
+                          "isCorrect"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "contains": {
+                        "type": "object",
+                        "properties": {
+                          "isCorrect": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "isCorrect"
+                        ]
+                      },
+                      "minContains": 1,
+                      "maxContains": 1
+                    }
+                  },
+                  "required": [
+                    "externalId",
+                    "category",
+                    "bodyMd",
+                    "type",
+                    "options"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "externalId": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "A stable ID, unique within this source, such as \"boyarsky-ch3-q12\". Loading a file again updates the question with the same ID and keeps its history, so never reuse an ID for a different question."
+                    },
+                    "category": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The category this question belongs to. Must exactly match a name from the exam's category list."
+                    },
+                    "bodyMd": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The question in Markdown, with code in fenced blocks that name the language, such as ```java. Include instructions such as \"Choose two.\" Don't include the question number or the options."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "multi",
+                      "description": "One or more correct options, shown as checkboxes, for \"choose two\" or \"all that apply\". Correct only if the selection matches exactly."
+                    },
+                    "lockOptionOrder": {
+                      "type": "boolean",
+                      "description": "Set to true only if the option order matters, for example with \"All of the above\". Otherwise leave it out, and options are shuffled."
+                    },
+                    "options": {
+                      "minItems": 2,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bodyMd": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\", because options get shuffled."
+                          },
+                          "isCorrect": {
+                            "type": "boolean",
+                            "description": "Whether this option is a correct answer."
+                          },
+                          "explanationMd": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "Optional text shown with this option after answering. For a wrong option, say why it is wrong in 1-3 sentences. For a correct option, say why it is right in 1-2 sentences. Leave it out rather than inventing filler."
+                          },
+                          "explanationOrigin": {
+                            "type": "string",
+                            "enum": [
+                              "source",
+                              "generated"
+                            ],
+                            "description": "Who wrote explanationMd. \"source\" (assumed if left out) means it came from the source material. \"generated\" means an AI wrote it, so the app may later replace it when asked."
+                          }
+                        },
+                        "required": [
+                          "bodyMd",
+                          "isCorrect"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "contains": {
+                        "type": "object",
+                        "properties": {
+                          "isCorrect": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "isCorrect"
+                        ]
+                      },
+                      "minContains": 1
+                    }
+                  },
+                  "required": [
+                    "externalId",
+                    "category",
+                    "bodyMd",
+                    "type",
+                    "options"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "externalId": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "A stable ID, unique within this source, such as \"boyarsky-ch3-q12\". Loading a file again updates the question with the same ID and keeps its history, so never reuse an ID for a different question."
+                    },
+                    "category": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The category this question belongs to. Must exactly match a name from the exam's category list."
+                    },
+                    "bodyMd": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The question in Markdown, with code in fenced blocks that name the language, such as ```java. Include instructions such as \"Choose two.\" Don't include the question number or the options."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "free_form",
+                      "description": "Answered in free text, and judged against the model answer. Has no options."
+                    },
+                    "modelAnswerMd": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "description": "The answer to judge against, in Markdown, covering the key points a good answer must make."
+                    }
+                  },
+                  "required": [
+                    "externalId",
+                    "category",
+                    "bodyMd",
+                    "type",
+                    "modelAnswerMd"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "questions"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "omitted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "pattern": "\\S",
+            "description": "Where the question was in the source, such as \"Practice exam 1, question 17\"."
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S",
+            "description": "Why it was left out, such as \"Depends on an image\"."
+          }
+        },
+        "required": [
+          "reference",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Questions deliberately left out. Images are not supported, so list any question that depends on one here instead of including it."
+    }
+  },
+  "required": [
+    "formatVersion",
+    "exam",
+    "source",
+    "chapters"
+  ],
+  "additionalProperties": false,
+  "title": "Question bank",
+  "description": "One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Beyond this schema, externalId values and chapter names must each be unique within the file, and every category must match the exam's list exactly. Output only the JSON."
+}

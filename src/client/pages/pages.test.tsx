@@ -7,7 +7,10 @@ import { api } from '@/lib/api'
 import { ComponentGalleryPage } from './ComponentGalleryPage'
 import { HomePage } from './HomePage'
 
-vi.mock('@/lib/highlight', () => ({ highlight: vi.fn(async () => null) }))
+vi.mock('@/lib/highlight', () => ({ highlight: vi.fn(async () => null), resolveLanguage: (language?: string) => language }))
+vi.mock('@/lib/settings', () => ({
+  useSyntaxHighlighting: () => ({ enabled: true, ready: true, toggle: () => {} }),
+}))
 vi.mock('@/lib/api', () => ({ api: { api: { health: { $get: vi.fn() } } } }))
 
 function renderPage(page: React.ReactNode) {
@@ -56,7 +59,8 @@ describe('ComponentGalleryPage', () => {
       await user.click(tryIt().getByRole('radio', { name: (name) => name.startsWith('[3]') }))
       await user.click(tryIt().getByRole('button', { name: /^Submit/ }))
 
-      expect(tryIt().getByText('Your answer · Incorrect')).toBeInTheDocument()
+      expect(tryIt().getByText('Your answer')).toBeInTheDocument()
+      expect(tryIt().getByText('Marked incorrect')).toBeInTheDocument()
       expect(tryIt().getByText('Correct answer')).toBeInTheDocument()
       expect(tryIt().getByText(/This is the list after the first call only/)).toBeInTheDocument()
       for (const radio of tryIt().getAllByRole('radio')) expect(radio).toBeDisabled()

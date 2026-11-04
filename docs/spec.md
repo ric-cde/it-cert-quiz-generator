@@ -42,8 +42,8 @@ Question and option text is Markdown, including code blocks. Each option has opt
 |---|---|
 | `users` | name, role (`admin` / `editor` / `learner`) |
 | `subjects` | name |
-| `exams` | subjectId, name, mockQuestionCount, mockTimeLimitMin, passMarkPct |
-| `user_exams` | userId, examId, examDate |
+| `exams` | subjectId, name, descriptionMd, syllabusMd, mockQuestionCount, mockTimeLimitMin, passMarkPct |
+| `user_exams` | userId, examId, examDate, passedAt |
 | `categories` | examId, name, weight (optional) |
 | `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`) |
 | `chapters` | sourceId, name |
@@ -55,7 +55,7 @@ Question and option text is Markdown, including code blocks. Each option has opt
 | `question_stats` | userId, questionId, difficulty, attemptCount, correctCount, streak, latestCorrect, everCorrect, lastSeenAt |
 | `drafts` | examId, kind (`import` / `generate`), status, input, draftJson |
 | `ai_calls` | purpose, model, inputTokens, outputTokens, createdAt |
-| `settings` | userId, priority weights, quiz defaults |
+| `settings` | userId, priority weights, quiz defaults, syntaxHighlighting |
 
 Rules:
 
@@ -91,7 +91,7 @@ All question types count, and a free-form partial shows yellow. Flagged question
 
 ### Home
 
-Subjects, with their exams below them, and each exam's sources with progress bars. A Resume link appears if a quiz is unfinished. Links to Generate, Import, Manage and Settings.
+Subjects, with their exams below them, and each exam's sources with progress bars. An exam you've marked as passed shows **Passed** and moves down the list, and can be unmarked. A Resume link appears if a quiz is unfinished. Links to Generate, Import, Manage and Settings.
 
 ### Take exam
 
@@ -120,7 +120,7 @@ Subjects, with their exams below them, and each exam's sources with progress bar
 | Type | All, Multiple choice, Free-form. Defaults to All. |
 | Max questions | 20, 50, 100, Max presets, plus a number field for any other value. A value above what's available is capped by it. |
 | Prioritise | On/off. Decides which questions make the cut when capped. Off means a random pick. |
-| Sort | Random, Easiest first, Hardest first. Orders the chosen set. |
+| Sort | Random, Easiest 1st, Hardest 1st. Orders the chosen set. |
 | Feedback | After each question, or At the end. See the Quiz section below. The default is set in Settings. |
 
 A live count always shows the result, for example **"20 of 137 available"**, or **"137 of 137"** on Max.
@@ -131,8 +131,9 @@ A live count always shows the result, for example **"20 of 137 available"**, or 
 
 Both feedback modes share these:
 
-- The question is shown in Markdown. Code blocks are highlighted and have an icon-only copy button.
-- Every question has **Flag** and, with permission, **Edit**.
+- The question is shown in Markdown. Code blocks have icon-only copy and syntax highlighting buttons. The highlighting button changes a saved global setting, because reading plain code is part of preparing for an exam that has no highlighting.
+- Every question has **Flag** and, with permission, **Edit**, at the bottom of the card.
+- Once locked, your chosen option has a **Your answer** tag in its top right corner. Whether it's right is shown by its mark and colour.
 - Each attempt is saved as soon as it's made, so a quiz can be closed and resumed.
 - You can end a quiz early and go to results.
 
@@ -142,7 +143,7 @@ Both feedback modes share these:
    - your wrong choice highlighted, with its text
    - the correct answer highlighted, with its text
    - any remaining option text that exists
-2. **Reveal answer** can be used instead of answering. It highlights the correct answer and shows its text, and counts as a miss.
+2. **Reveal answer** can be used instead of answering. It highlights the correct answer and shows its text, and counts as a miss. The whole question card takes on a slightly different background, so a reveal can't be mistaken for a correct answer.
 3. After an incorrect or revealed answer, the explanation area appears (see section 6).
 4. **Next** moves on.
 5. Keyboard: number keys select, Enter submits or moves on, R reveals, E generates an explanation.
@@ -212,7 +213,7 @@ Difficulty and failure rate overlap and may later merge. Keeping the weights sep
 
 ## 5. Getting questions in
 
-Both routes below end in the same **canonical JSON format**, validated by one shared Zod schema.
+Both routes below end in the same **canonical JSON format**, validated by one shared Zod schema (`src/shared/question-bank.ts`). `docs/question-bank.schema.json` is generated from it and is the copy to share with an LLM, and `docs/question-bank.example.json` shows a mock bank. One file holds one source.
 
 **Route A, built first:**
 
@@ -254,7 +255,7 @@ Implementation notes:
 - Use structured outputs with Zod validation for generation, extraction, judging and explanations. Stage 10 needs to confirm this combines cleanly with web search.
 - Log token usage for every call in `ai_calls`, visible in the data inspector.
 
-**Generation form:** exam, categories, count, target difficulty, format (multiple choice or free-form), and optional reference material (pasted or uploaded). The target source defaults to **Generated**, can be renamed in place, and can be swapped for any existing source. The Chapter defaults to a dated batch label, such as "Batch 2026-11-04", and can be edited. Generated multiple choice questions include per-answer text for every option. Results always go to the draft review screen before saving.
+**Generation form:** exam, categories, count, target difficulty, format (multiple choice or free-form), and optional reference material (pasted or uploaded). The exam's stored description and syllabus are included as context. The target source defaults to **Generated**, can be renamed in place, and can be swapped for any existing source. The Chapter defaults to a dated batch label, such as "Batch 2026-11-04", and can be edited. Generated multiple choice questions include per-answer text for every option. Results always go to the draft review screen before saving.
 
 **Explanations:** at most one generated explanation per question, and it doesn't depend on which answer you chose. One API call writes the per-answer text for every option on the question at once (2-5 answers), which keeps token use down.
 
@@ -285,13 +286,14 @@ Available from a footer link, for admin only.
 
 - **Data inspector (`/dev/data`):** every table in simple read-only form, with sorting, paging and refresh, so you can confirm that each action wrote what it should.
 - **Component gallery (`/dev/components`):** the theme tokens and every component in all of its states on one page, using static sample content.
-- **Theme:** colours, type, spacing and radii are CSS variable tokens mapped into Tailwind, so one change applies everywhere. v1 has one theme, agreed at the Stage 2 review, and the tokens leave room for a dark mode later.
+- **Theme:** fonts, colours, type, spacing and radii are CSS variable tokens mapped into Tailwind, so one change applies everywhere. Each look is a saved file in `src/client/themes/`, and one line in `src/client/theme.css` chooses which is active, so new looks can be tried and reverted. The tokens leave room for a dark mode later.
 
 ## 9. Technical notes
 
 Follows `stack.md`, including its CLAUDE.md rules.
 
 - **Location:** the repo lives in `C:\Projects`, outside OneDrive, because syncing a live SQLite database can lock or corrupt it.
+- **Databases:** `npm run dev` uses `data/dev/quiz.db` and `npm start` uses `data/quiz.db`, so test data can't mix with real study progress.
 - **Git-ignored data:** the database, question bank data and source documents are never committed. `.gitignore` covers `data/` and `.env` from Stage 1, and imported files are kept under `data/`.
 - **Responsive layout** from the start, so v2 on a phone needs little rework.
 - **Automated tests** are part of every stage. Logic and API tests cover difficulty, selection and live counts, scoring (including extra options on multi-answer questions), progress and attempt recording, with a few end-to-end tests of core flows. Claude calls are mocked.

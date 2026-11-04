@@ -6,6 +6,26 @@ import { Button } from './Button'
 import { inputClass } from './Field'
 import { Spinner } from './Spinner'
 
+/** Holds the filters, fitting as many on a line as the width allows. */
+export function FilterPanel({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap gap-x-6 gap-y-4">{children}</div>
+      {footer && <div className="mt-4">{footer}</div>}
+    </div>
+  )
+}
+
+/** One filter, with its label above it. */
+export function FilterField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="max-w-full min-w-0">
+      <p className="mb-1 text-sm font-semibold">{label}</p>
+      {children}
+    </div>
+  )
+}
+
 /** Pick one of a few options. Arrow keys move between them. */
 export function Segmented<T extends string>({
   label,

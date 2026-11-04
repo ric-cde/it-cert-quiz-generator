@@ -21,6 +21,13 @@ describe('highlight', () => {
     expect(html).toContain('int')
   })
 
+  it('takes its colours from the theme, leaving no stand-in colours behind', async () => {
+    const html = await highlight('// note\nint x = 1;', 'java')
+    expect(html).toContain('var(--color-code-keyword)')
+    expect(html).toContain('var(--color-code-comment)')
+    expect(html).not.toMatch(/#00000[1-8]/)
+  })
+
   it('returns nothing for a language it does not know', async () => {
     expect(await highlight('anything', 'cobol')).toBeNull()
     expect(await highlight('anything', undefined)).toBeNull()
