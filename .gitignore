@@ -1,0 +1,31 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Database, question bank data and source documents (never commit these)
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+sources/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+test-results/
+playwright-report/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

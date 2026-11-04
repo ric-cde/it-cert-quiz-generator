@@ -1,0 +1,250 @@
+@import 'tailwindcss';
+
+/*
+  The one place the look of the app is defined. Colours, type, spacing and radii are all
+  CSS variables, so changing a value here applies everywhere.
+
+  The idea: a marked exam paper. Soft paper white for long reading sessions, cobalt ink for
+  what you're doing, and green and red only for the marking.
+*/
+
+@theme static {
+  /* Only the colours below exist, so nothing can drift off-palette. */
+  --color-*: initial;
+
+  --color-paper: oklch(0.978 0.004 85);
+  --color-surface: oklch(1 0 0);
+  --color-sunken: oklch(0.948 0.006 85);
+
+  --color-ink: oklch(0.25 0.025 265);
+  --color-ink-soft: oklch(0.46 0.02 265);
+  --color-line: oklch(0.905 0.006 265);
+  --color-line-strong: oklch(0.72 0.014 265);
+
+  --color-accent: oklch(0.47 0.19 263);
+  --color-accent-strong: oklch(0.39 0.17 263);
+  --color-accent-soft: oklch(0.955 0.024 263);
+  --color-on-accent: oklch(1 0 0);
+
+  --color-correct: oklch(0.6 0.15 155);
+  --color-correct-ink: oklch(0.39 0.1 155);
+  --color-correct-soft: oklch(0.962 0.035 155);
+
+  --color-wrong: oklch(0.56 0.2 27);
+  --color-wrong-ink: oklch(0.44 0.17 27);
+  --color-wrong-soft: oklch(0.962 0.022 27);
+
+  --color-amber: oklch(0.82 0.15 82);
+  --color-amber-ink: oklch(0.43 0.09 75);
+  --color-amber-soft: oklch(0.968 0.045 92);
+
+  --color-code-bg: oklch(0.235 0.03 265);
+  --color-code-ink: oklch(0.93 0.01 265);
+  --color-code-soft: oklch(0.34 0.03 265);
+
+  /* Atkinson Hyperlegible keeps l, I and 1 and 0 and O apart, which matters in exam questions. */
+  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, Consolas, monospace;
+
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9063rem;
+  --text-sm--line-height: 1.4rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.9rem;
+  --text-2xl: 1.875rem;
+  --text-2xl--line-height: 2.3rem;
+
+  --spacing: 0.25rem;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-full: 9999px;
+
+  --shadow-card: 0 1px 2px oklch(0.25 0.025 265 / 0.05);
+  --shadow-raised: 0 1px 2px oklch(0.25 0.025 265 / 0.12), 0 2px 6px oklch(0.25 0.025 265 / 0.06);
+  --shadow-key: inset 0 -2px 0 oklch(0.15 0.03 265 / 0.2);
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-pop: pop 260ms var(--ease-spring) both;
+  --animate-draw: draw 320ms var(--ease-out-soft) both;
+  --animate-fill: fill 700ms var(--ease-out-soft) both;
+  --animate-nudge: nudge 320ms ease-in-out both;
+  --animate-rise: rise 240ms var(--ease-out-soft) both;
+
+  @keyframes pop {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes fill {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  @keyframes nudge {
+    25% {
+      transform: translateX(-3px);
+    }
+    60% {
+      transform: translateX(2px);
+    }
+  }
+  @keyframes rise {
+    from {
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* `data-force` lets the gallery show hover and focus states without a mouse. */
+@custom-variant hocus (&:hover:not(:disabled, [aria-disabled='true']), &[data-force~='hover']);
+@custom-variant focus-ring (&:focus-visible, &[data-force~='focus']);
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-strong);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+}
+
+@layer components {
+  /* Markdown from question banks. */
+  .prose-quiz > * + * {
+    margin-top: 0.75em;
+  }
+  .prose-quiz ul {
+    list-style: disc;
+    padding-left: 1.4em;
+  }
+  .prose-quiz ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+  }
+  .prose-quiz li + li {
+    margin-top: 0.25em;
+  }
+  .prose-quiz a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .prose-quiz strong {
+    font-weight: 700;
+  }
+  .prose-quiz h1,
+  .prose-quiz h2,
+  .prose-quiz h3 {
+    font-size: 1.1em;
+  }
+  .prose-quiz blockquote {
+    border-left: 3px solid var(--color-line-strong);
+    padding-left: 0.85em;
+    color: var(--color-ink-soft);
+  }
+  .prose-quiz :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--color-sunken);
+    padding: 0.1em 0.35em;
+    border-radius: var(--radius-sm);
+  }
+  .prose-quiz table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .prose-quiz th,
+  .prose-quiz td {
+    border: 1px solid var(--color-line);
+    padding: 0.35em 0.7em;
+    text-align: left;
+  }
+  .prose-quiz th {
+    background: var(--color-sunken);
+    font-weight: 700;
+  }
+
+  /* Shiki output inside CodeBlock. */
+  .code-block pre {
+    margin: 0;
+    background: transparent !important;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  .code-block code {
+    font-family: var(--font-mono);
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  /* Hand-drawn marks: each path's length is normalised to 1 with pathLength. */
+  .mark-stroke {
+    stroke-dasharray: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

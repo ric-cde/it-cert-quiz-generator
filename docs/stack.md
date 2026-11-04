@@ -42,7 +42,7 @@
 
 ## Dev and running locally
 
-- **`tsx watch` + Vite via `concurrently`:** one command runs both, and Vite proxies `/api` to Hono.
+- **`node --watch --import tsx` + Vite via `concurrently`:** one command runs both, and Vite proxies `/api` to Hono. (`tsx watch` hangs under `concurrently` on this machine.)
 - **`npm run build && npm start`:** runs the production build locally for studying, so development changes can't interrupt a quiz.
 
 ## Later (v2)
