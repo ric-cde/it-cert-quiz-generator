@@ -14,39 +14,55 @@ const IS_CORRECT = { type: 'object', properties: { isCorrect: { const: true } },
 
 const countCorrect = (options: { isCorrect: boolean }[]) => options.filter((option) => option.isCorrect).length
 
+const explanationOrigin = z
+  .enum(['source', 'generated'])
+  .describe(
+    'Who wrote the explanation. "source" (assumed if left out) means it came from the source material. "generated" means an AI wrote it, so the app may later replace it when asked, and never lets it replace source text.',
+  )
+  .optional()
+
 const optionSchema = z.strictObject({
   bodyMd: text('The answer text in Markdown. Leave out labels such as "A." or "1)", because options get shuffled.'),
   isCorrect: z.boolean().describe('Whether this option is a correct answer.'),
   explanationMd: text(
     'Optional text shown with this option after answering. For a wrong option, say why it is wrong in 1-3 sentences. For a correct option, say why it is right in 1-2 sentences. Leave it out rather than inventing filler.',
   ).optional(),
-  explanationOrigin: z
-    .enum(['source', 'generated'])
-    .describe(
-      'Who wrote explanationMd. "source" (assumed if left out) means it came from the source material. "generated" means an AI wrote it, so the app may later replace it when asked.',
-    )
-    .optional(),
+  explanationOrigin,
 })
 
 const questionFields = {
   externalId: text(
-    'A stable ID, unique within this source, such as "boyarsky-ch3-q12". Loading a file again updates the question with the same ID and keeps its history, so never reuse an ID for a different question.',
+    'Recommended. A short stable ID you make up from where the question sits in the source, such as "pe1-q17". It only has to be unique within the source. Loading a file again updates the question with the same ID and keeps its history, even if the wording was corrected, so never reuse an ID for a different question. If left out, the app matches on the question text instead, so a question whose wording changes is treated as new.',
+  ).optional(),
+  category: text(
+    "The category this question belongs to. Use the exam's own category or topic name where one fits, spelled exactly. Another name is allowed when none fits, and the import screen asks where it goes.",
   ),
-  category: text("The category this question belongs to. Must exactly match a name from the exam's category list."),
   bodyMd: text(
     'The question in Markdown, with code in fenced blocks that name the language, such as ```java. Include instructions such as "Choose two." Don\'t include the question number or the options.',
   ),
+  reviewNote: text(
+    'Optional. A note for a person to check, such as "The source says B, but the code does not compile". The question stays in quizzes with a warning, and is listed for review after import. Use it only for real doubts.',
+  ).optional(),
 }
 
 const lockOptionOrder = z
   .boolean()
   .describe(
-    'Set to true only if the option order matters, for example with "All of the above". Otherwise leave it out, and options are shuffled.',
+    'Set to true only if the option order matters, for example with "All of the above" or True/False. Otherwise leave it out, and options are shuffled.',
   )
   .optional()
 
+/** Multiple choice only. Free-form questions explain themselves in their model answer. */
+const questionExplanation = {
+  explanationMd: text(
+    'Optional text about the question as a whole, shown below the options after answering. Use it for a source\'s single explanation that covers the question rather than one option. Per-option text can be used as well, or instead.',
+  ).optional(),
+  explanationOrigin,
+}
+
 const singleQuestionSchema = z.strictObject({
   ...questionFields,
+  ...questionExplanation,
   type: z.literal('single').describe('Exactly one correct option, shown as radio buttons.'),
   lockOptionOrder,
   options: z
@@ -58,6 +74,7 @@ const singleQuestionSchema = z.strictObject({
 
 const multiQuestionSchema = z.strictObject({
   ...questionFields,
+  ...questionExplanation,
   type: z
     .literal('multi')
     .describe(
@@ -100,6 +117,15 @@ export const questionBankSchema = z
         origin: z
           .enum(['upload', 'generated'])
           .describe('"upload" for questions converted from existing material. "generated" for questions an AI wrote.'),
+        trust: z
+          .enum(['official', 'third_party', 'ai'])
+          .describe(
+            'Optional. "official" for the exam vendor\'s own material, such as its sample exam. "third_party" for anyone else\'s, such as a study guide. "ai" for questions an AI wrote. Left out, generated sources count as "ai".',
+          )
+          .optional(),
+        reference: text(
+          'Optional. Where the source can be found: a URL, or a book with its edition and year, and the date it was retrieved.',
+        ).optional(),
       })
       .describe('A single source. Use one file per source.'),
     chapters: z.array(chapterSchema).min(1),
@@ -123,6 +149,7 @@ export const questionBankSchema = z
       seenChapters.add(chapter.name)
 
       chapter.questions.forEach((question, questionIndex) => {
+        if (question.externalId === undefined) return
         if (seenIds.has(question.externalId)) {
           ctx.addIssue({
             code: 'custom',
@@ -137,7 +164,7 @@ export const questionBankSchema = z
   .meta({
     title: 'Question bank',
     description:
-      'One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Beyond this schema, externalId values and chapter names must each be unique within the file, and every category must match the exam\'s list exactly. Output only the JSON.',
+      'One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Options are shuffled, so never refer to one by letter or position. Beyond this schema, externalId values and chapter names must each be unique within the file, and categories should use the exam\'s own names where one fits. Output only the JSON.',
   })
 
 export type QuestionBank = z.infer<typeof questionBankSchema>

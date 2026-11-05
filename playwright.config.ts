@@ -11,7 +11,8 @@ export default defineConfig({
     channel: 'chrome',
   },
   webServer: {
-    command: 'npm run build && npm start',
+    // Starts from an empty database every run, so nothing a test saved can affect the next run.
+    command: `node -e "require('fs').rmSync('data/e2e',{recursive:true,force:true})" && npm run build && npm start`,
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,

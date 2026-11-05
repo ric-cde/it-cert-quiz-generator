@@ -7,6 +7,7 @@ import * as schema from './schema'
 import { seed } from './seed'
 
 export type Db = BetterSQLite3Database<typeof schema> & { $client: Database.Database }
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
 const MIGRATIONS_FOLDER = resolve(process.cwd(), 'drizzle')
 

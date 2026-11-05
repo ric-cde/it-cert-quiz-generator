@@ -11,7 +11,14 @@ vi.mock('@/lib/highlight', () => ({ highlight: vi.fn(async () => null), resolveL
 vi.mock('@/lib/settings', () => ({
   useSyntaxHighlighting: () => ({ enabled: true, ready: true, toggle: () => {} }),
 }))
-vi.mock('@/lib/api', () => ({ api: { api: { health: { $get: vi.fn() } } } }))
+vi.mock('@/lib/api', () => ({
+  api: {
+    api: {
+      health: { $get: vi.fn() },
+      quizzes: { 'start-options': { $get: vi.fn(async () => Response.json({ sources: [], unfinished: [] })) } },
+    },
+  },
+}))
 
 function renderPage(page: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

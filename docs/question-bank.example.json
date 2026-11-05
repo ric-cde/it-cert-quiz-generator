@@ -3,7 +3,9 @@
   "exam": "Java SE 21 Developer Professional (1Z0-830)",
   "source": {
     "name": "Mock example",
-    "origin": "generated"
+    "origin": "generated",
+    "trust": "ai",
+    "reference": "Written for the documentation, November 2026"
   },
   "chapters": [
     {
@@ -14,6 +16,8 @@
           "type": "single",
           "category": "Working with Arrays and Collections",
           "bodyMd": "What does this print?\n\n```java\nvar list = new ArrayList<>(List.of(1, 2, 3));\nlist.remove(1);\nSystem.out.println(list);\n```",
+          "explanationMd": "`remove(1)` calls `remove(int index)`, because an `int` argument matches it exactly, without boxing.",
+          "explanationOrigin": "generated",
           "options": [
             {
               "bodyMd": "`[1, 3]`",
@@ -23,9 +27,7 @@
             },
             {
               "bodyMd": "`[2, 3]`",
-              "isCorrect": false,
-              "explanationMd": "This would remove the value 1. An `int` argument selects `remove(int)`, which removes by index, not by value.",
-              "explanationOrigin": "generated"
+              "isCorrect": false
             },
             {
               "bodyMd": "The code does not compile",
@@ -39,9 +41,22 @@
           "category": "Using Object-Oriented Concepts in Java",
           "bodyMd": "Which statements about records are true? Choose two.",
           "options": [
-            { "bodyMd": "A record can implement interfaces.", "isCorrect": true },
-            { "bodyMd": "A record is implicitly final.", "isCorrect": true },
-            { "bodyMd": "A record can extend another class.", "isCorrect": false }
+            {
+              "bodyMd": "A record can implement interfaces.",
+              "isCorrect": true,
+              "explanationMd": "Correct! A record can implement interfaces, though it can't extend a class.",
+              "explanationOrigin": "generated"
+            },
+            {
+              "bodyMd": "A record is implicitly final.",
+              "isCorrect": true,
+              "explanationMd": "Correct! A record is implicitly final, so it can't be subclassed.",
+              "explanationOrigin": "generated"
+            },
+            {
+              "bodyMd": "A record can extend another class.",
+              "isCorrect": false
+            }
           ]
         },
         {
@@ -51,9 +66,20 @@
           "bodyMd": "Which can be caught with a `catch (Exception e)` block?",
           "lockOptionOrder": true,
           "options": [
-            { "bodyMd": "`IOException`", "isCorrect": false },
-            { "bodyMd": "`IllegalArgumentException`", "isCorrect": false },
-            { "bodyMd": "All of the above", "isCorrect": true }
+            {
+              "bodyMd": "`IOException`",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "`IllegalArgumentException`",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "All of the above",
+              "isCorrect": true,
+              "explanationMd": "Correct! Both are subclasses of `Exception`, so that block catches them.",
+              "explanationOrigin": "generated"
+            }
           ]
         },
         {

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_PRIORITY_WEIGHTS, DEFAULT_QUIZ_DEFAULTS } from '../../shared/domain'
 import { type Db, openDb } from './index'
@@ -44,13 +44,57 @@ describe('seed', () => {
   it('gives every exam its categories and complete mock settings', () => {
     for (const exam of db.select().from(exams).all()) {
       const seeded = SEED_EXAMS.find((item) => item.exam === exam.name)!
-      const rows = db.select().from(categories).where(eq(categories.examId, exam.id)).orderBy(categories.id).all()
+      const rows = db
+        .select()
+        .from(categories)
+        .where(and(eq(categories.examId, exam.id), isNull(categories.parentId)))
+        .orderBy(categories.id)
+        .all()
 
       expect(rows.map((c) => c.name)).toEqual(seeded.categories.map((c) => c.name))
+      expect(rows.every((c) => c.official)).toBe(true)
       expect(exam.mockQuestionCount).toBeGreaterThan(0)
       expect(exam.mockTimeLimitMin).toBeGreaterThan(0)
       expect(exam.passMarkPct).toBeGreaterThan(0)
     }
+  })
+
+  it('adds official topics under their categories, with weights that add up to the category', () => {
+    const rows = db.select().from(categories).all()
+    const fetching = rows.find((c) => c.name === 'Fetching Data')!
+    expect(rows.filter((c) => c.parentId === fetching.id).map((c) => [c.name, c.weight, c.official])).toEqual([
+      ['Aggregates', 12, true],
+      ['Fetching Data on Screens', 8, true],
+    ])
+    for (const item of SEED_EXAMS) {
+      for (const category of item.categories) {
+        if (!category.topics) continue
+        expect(category.topics.reduce((sum, t) => sum + (t.weight ?? 0), 0), category.name).toBe(category.weight)
+      }
+    }
+  })
+
+  it('gives topics to a database seeded before they existed, once', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'quiz-'))
+    const file = join(dir, 'quiz.db')
+    const first = openDb(file)
+    first.delete(categories).where(eq(categories.name, 'Aggregates')).run()
+    first.delete(categories).where(eq(categories.parentId, first.select().from(categories).where(eq(categories.name, 'UI Design')).get()!.id)).run()
+    // Pretend no exam has topics yet, apart from one removed by hand.
+    const topicIds = first.select().from(categories).all().filter((c) => c.parentId !== null)
+    for (const topic of topicIds) first.delete(categories).where(eq(categories.id, topic.id)).run()
+    first.$client.close()
+
+    const again = openDb(file)
+    expect(again.select().from(categories).all().filter((c) => c.parentId !== null)).toHaveLength(14)
+
+    again.delete(categories).where(eq(categories.name, 'Aggregates')).run()
+    again.$client.close()
+    const third = openDb(file)
+    // Removed by hand while the exam has other topics, so it stays removed.
+    expect(third.select().from(categories).where(eq(categories.name, 'Aggregates')).get()).toBeUndefined()
+    third.$client.close()
+    rmSync(dir, { recursive: true, force: true })
   })
 
   it('has category weights that add up to 100 wherever an exam has them', () => {
@@ -135,7 +179,7 @@ describe('schema', () => {
       .get()
     const quiz = db
       .insert(quizzes)
-      .values({ userId: 1, examId: 1, mode: 'study', config: { max: 20 }, questionIds: [question.id] })
+      .values({ userId: 1, examId: 1, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question.id] })
       .returning()
       .get()
     const attempt = db
@@ -153,7 +197,7 @@ describe('schema', () => {
 
     expect(question.lockOptionOrder).toBe(false)
     expect(option.isCorrect).toBe(true)
-    expect(quiz.config).toEqual({ max: 20 })
+    expect(quiz.config).toEqual({ feedback: 'after_each', sourceId: 1 })
     expect(quiz.questionIds).toEqual([question.id])
     expect(quiz.startedAt).toBeInstanceOf(Date)
     expect(attempt.selectedOptionIds).toEqual([option.id])
@@ -173,7 +217,7 @@ describe('schema', () => {
     const { question } = addMockQuestion(db)
     const quiz = db
       .insert(quizzes)
-      .values({ userId: 1, examId: 1, mode: 'study', config: {}, questionIds: [question.id] })
+      .values({ userId: 1, examId: 1, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question.id] })
       .returning()
       .get()
     db.insert(attempts)

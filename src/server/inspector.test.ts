@@ -29,9 +29,9 @@ describe('GET /api/dev/tables', () => {
 
     const res = await api.request('/api/dev/tables')
     const list = (await res.json()) as TableSummary[]
-    expect(list).toHaveLength(16)
+    expect(list).toHaveLength(17)
     expect(list.find((t) => t.name === 'users')).toEqual({ name: 'users', rowCount: 1 })
-    expect(list.find((t) => t.name === 'categories')?.rowCount).toBe(24)
+    expect(list.find((t) => t.name === 'categories')?.rowCount).toBe(38)
     expect(list.find((t) => t.name === 'questions')?.rowCount).toBe(0)
   })
 })
@@ -88,9 +88,9 @@ describe('GET /api/dev/tables/:name', () => {
     const second = await getTable('categories?sort=examId&page=2')
 
     expect(first.rows).toHaveLength(INSPECTOR_PAGE_SIZE)
-    expect(second.rows).toHaveLength(24 - INSPECTOR_PAGE_SIZE)
-    expect(first).toMatchObject({ page: 1, pageCount: 2, total: 24 })
-    expect(new Set([...first.rows, ...second.rows].map((row) => row.id)).size).toBe(24)
+    expect(second.rows).toHaveLength(38 - INSPECTOR_PAGE_SIZE)
+    expect(first).toMatchObject({ page: 1, pageCount: 2, total: 38 })
+    expect(new Set([...first.rows, ...second.rows].map((row) => row.id)).size).toBe(38)
   })
 
   it('gives the last page when asked for one past the end', async () => {

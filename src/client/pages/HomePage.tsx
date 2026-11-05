@@ -1,4 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
+import { buttonClass } from '@/components/Button'
+import { PracticeStart } from '@/components/PracticeStart'
 import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 
@@ -37,6 +40,12 @@ export function HomePage() {
           </p>
         )}
       </section>
+
+      <PracticeStart />
+
+      <Link to="/import" className={`mt-6 ${buttonClass()}`}>
+        Import questions
+      </Link>
 
       <p className="mt-6 text-sm text-ink-soft">The data inspector and component gallery are linked in the footer.</p>
     </div>

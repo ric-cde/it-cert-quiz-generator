@@ -12,6 +12,7 @@ export const INSPECTOR_TABLES: SQLiteTable[] = [
   schema.exams,
   schema.userExams,
   schema.categories,
+  schema.categoryAliases,
   schema.sources,
   schema.chapters,
   schema.questions,

@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import {
+  type AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 import {
   AI_PURPOSES,
   ATTEMPT_KINDS,
@@ -10,10 +20,12 @@ import {
   type ExplanationSource,
   type PriorityWeights,
   QUESTION_TYPES,
+  type QuizConfig,
   QUIZ_MODES,
   type QuizDefaults,
   ROLES,
   SOURCE_ORIGINS,
+  SOURCE_TRUST,
 } from '../../shared/domain'
 
 const id = () => integer('id').primaryKey({ autoIncrement: true })
@@ -78,6 +90,11 @@ export const userExams = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.examId] })],
 )
 
+/**
+ * Two levels: a category, or a topic within one when `parentId` is set. Questions can belong to
+ * either, and stats roll topics up into their category. Official ones come from the exam's own
+ * objectives. Unofficial ones are added on import, when a file uses a name the exam doesn't have.
+ */
 export const categories = sqliteTable(
   'categories',
   {
@@ -85,10 +102,28 @@ export const categories = sqliteTable(
     examId: integer('exam_id')
       .notNull()
       .references(() => exams.id),
+    parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id),
     name: text('name').notNull(),
     weight: real('weight'),
+    official: bool('official').notNull().default(true),
   },
   (t) => [uniqueIndex('categories_exam_name_unique').on(t.examId, t.name)],
+)
+
+/** A category name used in a file, and where the user chose to put its questions. Used again next time. */
+export const categoryAliases = sqliteTable(
+  'category_aliases',
+  {
+    id: id(),
+    examId: integer('exam_id')
+      .notNull()
+      .references(() => exams.id),
+    name: text('name').notNull(),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id),
+  },
+  (t) => [uniqueIndex('category_aliases_exam_name_unique').on(t.examId, t.name)],
 )
 
 export const sources = sqliteTable(
@@ -101,6 +136,9 @@ export const sources = sqliteTable(
     name: text('name').notNull(),
     rating: integer('rating'),
     origin: text('origin', { enum: SOURCE_ORIGINS }).notNull(),
+    trust: text('trust', { enum: SOURCE_TRUST }),
+    // A link or citation: a URL, a book and edition, or where and when it was found.
+    reference: text('reference'),
   },
   (t) => [
     uniqueIndex('sources_exam_name_unique').on(t.examId, t.name),
@@ -135,9 +173,15 @@ export const questions = sqliteTable(
     type: text('type', { enum: QUESTION_TYPES }).notNull(),
     bodyMd: text('body_md').notNull(),
     modelAnswerMd: text('model_answer_md'),
+    // Multiple choice only: one explanation for the whole question, alongside any per-option text.
+    explanationMd: text('explanation_md'),
+    explanationOrigin: text('explanation_origin', { enum: EXPLANATION_ORIGINS }),
     lockOptionOrder: bool('lock_option_order').notNull().default(false),
     externalId: text('external_id'),
     contentHash: text('content_hash').notNull(),
+    // A doubt raised when the question was written or imported. It stays in quizzes with a warning.
+    reviewNote: text('review_note'),
+    reviewedAt: timestamp('reviewed_at'),
     flaggedAt: timestamp('flagged_at'),
     flagReason: text('flag_reason'),
     deletedAt: timestamp('deleted_at'),
@@ -193,8 +237,7 @@ export const quizzes = sqliteTable(
       .notNull()
       .references(() => exams.id),
     mode: text('mode', { enum: QUIZ_MODES }).notNull(),
-    // Stage 6 gives this its final shape, along with the take-exam options.
-    config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    config: text('config', { mode: 'json' }).$type<QuizConfig>().notNull(),
     questionIds: text('question_ids', { mode: 'json' }).$type<number[]>().notNull(),
     position: integer('position').notNull().default(0),
     startedAt: timestamp('started_at')
@@ -227,7 +270,11 @@ export const attempts = sqliteTable(
     durationMs: integer('duration_ms'),
     createdAt: createdAt(),
   },
-  (t) => [index('attempts_user_question').on(t.userId, t.questionId), index('attempts_quiz').on(t.quizId)],
+  (t) => [
+    index('attempts_user_question').on(t.userId, t.questionId),
+    // One try per question per quiz. Trying again means a new quiz, such as Retry missed.
+    uniqueIndex('attempts_quiz_question_unique').on(t.quizId, t.questionId),
+  ],
 )
 
 export const questionStats = sqliteTable(

@@ -3,12 +3,18 @@ import { AppShell } from './components/AppShell'
 import { ComponentGalleryPage } from './pages/ComponentGalleryPage'
 import { DevDataPage } from './pages/DevDataPage'
 import { HomePage } from './pages/HomePage'
+import { ImportPage } from './pages/ImportPage'
+import { QuizPage } from './pages/QuizPage'
+import { ReviewPage } from './pages/ReviewPage'
 
 export function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
+        <Route path="import" element={<ImportPage />} />
+        <Route path="review" element={<ReviewPage />} />
+        <Route path="quiz/:id" element={<QuizPage />} />
         <Route path="dev/components" element={<ComponentGalleryPage />} />
         <Route path="dev/data/:table?" element={<DevDataPage />} />
       </Route>

@@ -1,0 +1,194 @@
+{
+  "formatVersion": 1,
+  "exam": "Java SE 21 Developer Professional (1Z0-830)",
+  "source": {
+    "name": "Mock Java practice set",
+    "origin": "upload"
+  },
+  "chapters": [
+    {
+      "name": "Set 1: Collections and Language Basics",
+      "questions": [
+        {
+          "externalId": "set1-q1",
+          "type": "multi",
+          "category": "Working with Arrays and Collections",
+          "bodyMd": "Which TWO declarations compile? (Choose two.)",
+          "options": [
+            {
+              "bodyMd": "`List<int> a = new ArrayList<>();`",
+              "isCorrect": false,
+              "explanationMd": "Invalid because generics need reference types.",
+              "explanationOrigin": "source"
+            },
+            {
+              "bodyMd": "`List<Integer> b = new ArrayList<>();`",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "`var c = null;`",
+              "isCorrect": false,
+              "explanationMd": "This does not compile because the type can't be inferred from `null`.",
+              "explanationOrigin": "source"
+            },
+            {
+              "bodyMd": "`var d = new ArrayList<String>();`",
+              "isCorrect": true
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q2",
+          "type": "single",
+          "category": "Working with Arrays and Collections",
+          "lockOptionOrder": true,
+          "bodyMd": "What does this print?\n\n```java\n1: var list = new ArrayList<>(List.of(1, 2, 3));\n2: list.remove(1);\n3: System.out.println(list);\n```",
+          "explanationMd": "`remove(int)` removes by index.",
+          "explanationOrigin": "source",
+          "options": [
+            {
+              "bodyMd": "`[1, 3]`",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "`[2, 3]`",
+              "isCorrect": false,
+              "explanationMd": "This would be right only if it removed by value.",
+              "explanationOrigin": "source"
+            },
+            {
+              "bodyMd": "The code does not compile on line 2.",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "None of the above",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q3",
+          "type": "single",
+          "category": "Using Object-Oriented Concepts in Java",
+          "lockOptionOrder": true,
+          "bodyMd": "True or false: a record can extend another class.",
+          "explanationMd": "Records implicitly extend `java.lang.Record`.",
+          "explanationOrigin": "source",
+          "options": [
+            {
+              "bodyMd": "True",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "False",
+              "isCorrect": true
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q5",
+          "type": "single",
+          "category": "Using Object-Oriented Concepts in Java",
+          "lockOptionOrder": true,
+          "bodyMd": "Which keyword stops a method being overridden?",
+          "options": [
+            {
+              "bodyMd": "`static`",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "`final`",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "Both `static` and `final`",
+              "isCorrect": false,
+              "explanationMd": "This is wrong because static methods are hidden rather than overridden.",
+              "explanationOrigin": "source"
+            },
+            {
+              "bodyMd": "`abstract`",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q6",
+          "type": "single",
+          "category": "Working with Arrays and Collections",
+          "bodyMd": "Using this code, what is `list.size()` after line 2?\n\n```java\n1: var list = new ArrayList<>(List.of(1, 2, 3));\n2: list.remove(1);\n3: System.out.println(list);\n```",
+          "options": [
+            {
+              "bodyMd": "`1`",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "`2`",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "`3`",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q7",
+          "type": "free_form",
+          "category": "Managing Concurrent Code Execution",
+          "bodyMd": "Explain, in a sentence or two, why a virtual thread suits work that blocks on I/O.",
+          "modelAnswerMd": "A blocked virtual thread releases its carrier thread, so a few platform threads can serve many waiting tasks."
+        },
+        {
+          "externalId": "set1-q9",
+          "type": "single",
+          "category": "Handling Date, Time, Text, Numeric and Boolean Values",
+          "bodyMd": "What does this print?\n\n```java\nSystem.out.println(\"a\" + 1 + 2);\n```",
+          "reviewNote": "The source says `a3`, but string concatenation runs left to right, so this prints `a12`.",
+          "options": [
+            {
+              "bodyMd": "`a12`",
+              "isCorrect": false
+            },
+            {
+              "bodyMd": "`a3`",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "Does not compile",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "externalId": "set1-q10",
+          "type": "single",
+          "category": "Handling Date, Time, Text, Numeric and Boolean Values",
+          "bodyMd": "Which statement about `String` is correct?",
+          "explanationMd": "Strings never change after creation.",
+          "explanationOrigin": "source",
+          "options": [
+            {
+              "bodyMd": "Strings are immutable.",
+              "isCorrect": true
+            },
+            {
+              "bodyMd": "Strings can be changed in place with the `setCharAt` method.",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "reference": "Set 1, question 4",
+      "reason": "Depends on an image"
+    },
+    {
+      "reference": "Set 1, question 8",
+      "reason": "Matching exercise, which isn't supported, and no answer given"
+    }
+  ]
+}

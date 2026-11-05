@@ -22,7 +22,16 @@ A new database starts with the admin user, the three exams and their categories,
 
 ## Question banks
 
-To have an LLM write a question bank, share `docs/question-bank.schema.json` and `docs/question-bank.example.json` along with the exam's name and category list. After changing `src/shared/question-bank.ts`, run `npm run bank:schema` to update the schema file.
+Question banks are JSON files, loaded at `/import`. To make one, use the skill in the Claude app. It can copy existing questions from a PDF, web page or similar, write new ones from study material you upload, or write new ones from its own web research:
+
+1. Run `npm run skill:build`, which creates `dist/skill/creating-question-banks.zip`.
+2. In Claude, upload the zip at Customize > Skills and turn it on. Code execution must be enabled.
+3. In a chat, attach your source if you have one, and ask Claude for a question bank.
+4. Load the file it gives you at `/import`, check the preview, and press Import.
+
+Run `npm run skill:build` and upload the zip again after changing the skill, the format, the checks or the exams. `skill/evals` has a mock source for testing the skill.
+
+For another LLM, share `docs/question-bank.schema.json` and `docs/question-bank.example.json` along with the exam's name and category list. After changing `src/shared/question-bank.ts`, run `npm run bank:schema` to update the schema file.
 
 ## Themes
 

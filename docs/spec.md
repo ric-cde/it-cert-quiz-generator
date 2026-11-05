@@ -23,6 +23,7 @@ Hierarchy: **Subject > Exam > Category > Source > Chapter**
 
 - Each **Exam** has its own list of categories and its own sources.
 - **Category** comes first in the UI, because many sources cover the same category. In the data it is a label on each question, not a parent of Source, because one chapter can span several categories.
+- Categories have two levels: an exam's **official categories** and their **official topics**, from its exam detail sheet or syllabus, each with an optional weight. A question can belong to a topic or directly to a category, and stats roll topics up into their category. **Unofficial categories** come from imported files that use a name the exam doesn't have. They're kept apart from the official ones, so readiness can still be weighed against the exam's own structure.
 - **Chapter** is a chapter or any other grouping inside a Source, such as a practice set.
 - Every question belongs to exactly one Chapter and one Category.
 
@@ -34,7 +35,7 @@ Hierarchy: **Subject > Exam > Category > Source > Chapter**
 | Multi-answer | Checkboxes for "choose two" / "all that apply". The UI doesn't limit how many you can tick. Scored all-or-nothing: correct only if the selection exactly matches the correct options, so the right options plus an extra one is incorrect. |
 | Free-form | Text, multi-line or code answer with a stored model answer, judged by Claude Haiku. Stored in banks and mixed into quizzes like any other question. |
 
-Question and option text is Markdown, including code blocks. Each option has optional **per-answer text**, and the UI shows nothing where it is blank. For a wrong answer, this says why it's wrong in 1-3 sentences. For the correct answer, it says something like "Correct! Here's why" in 1-2 sentences. Ideally a bank comes with this text, and if it doesn't, Claude can write it (see section 6). Options are shuffled unless the question is marked `lockOptionOrder`, for example for "all of the above".
+Question and option text is Markdown, including code blocks. Each option has optional **per-answer text**, and a multiple choice question can also have an optional **explanation of the whole question**, shown below the options after answering. A source's single "Answer: B, because..." goes there rather than onto one option. The UI shows only the text that exists, wherever it is. When a question you missed has none at all, one muted line says so, and Stage 10's Generate button goes there. For a wrong answer, this says why it's wrong in 1-3 sentences. For the correct answer, it says something like "Correct! Here's why" in 1-2 sentences. Ideally a bank comes with this text, and if it doesn't, Claude can write it (see section 6). Options are shuffled unless the question is marked `lockOptionOrder`, for example for "all of the above".
 
 ### Tables
 
@@ -44,10 +45,11 @@ Question and option text is Markdown, including code blocks. Each option has opt
 | `subjects` | name |
 | `exams` | subjectId, name, descriptionMd, syllabusMd, mockQuestionCount, mockTimeLimitMin, passMarkPct |
 | `user_exams` | userId, examId, examDate, passedAt |
-| `categories` | examId, name, weight (optional) |
-| `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`) |
+| `categories` | examId, parentId (set for a topic), name, weight (optional), official |
+| `category_aliases` | examId, name, categoryId: a name from a file, and where the user chose to put it |
+| `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`), trust (`official` / `third_party` / `ai`, optional), reference (optional) |
 | `chapters` | sourceId, name |
-| `questions` | chapterId, categoryId, type, bodyMd, modelAnswerMd, lockOptionOrder, externalId, contentHash, flaggedAt, flagReason, deletedAt |
+| `questions` | chapterId, categoryId, type, bodyMd, modelAnswerMd, explanationMd, explanationOrigin, lockOptionOrder, externalId, contentHash, reviewNote, reviewedAt, flaggedAt, flagReason, deletedAt |
 | `options` | questionId, bodyMd, explanationMd, explanationOrigin (`source` / `generated`), isCorrect, position, deletedAt |
 | `explanations` | questionId (one per question), bodyMd (free-form questions only), sources, model, createdAt |
 | `quizzes` | userId, examId, mode (`study` / `mock`), config, questionIds, position, startedAt, finishedAt |
@@ -85,7 +87,9 @@ All question types count, and a free-form partial shows yellow. Flagged question
 ### Quality
 
 - Rate each **source** from 1 to 5. Higher-rated sources are favoured when prioritising.
+- Each source can also say how far it can be trusted: **official** (the exam vendor's own material, the ground truth), **third-party**, or **AI-written**, plus a **reference** such as a URL or a book and edition. These come from the file, and generated sources count as AI-written unless it says otherwise.
 - **Flag** any question as bad or wrong. Flagged questions are left out of quizzes and appear in a review list where you can fix or unflag them.
+- **Doubts:** a question can arrive with a `reviewNote`, for example when a source's answer looks wrong. It stays in quizzes with a warning, and the note itself, which may give away the answer, shows only after answering. The import screen sends you to `/review`, where you can keep the question as it is, change its answer, or take it out of quizzes, which flags it.
 
 ## 3. Screens
 
@@ -135,7 +139,10 @@ Both feedback modes share these:
 - Every question has **Flag** and, with permission, **Edit**, at the bottom of the card.
 - Once locked, your chosen option has a **Your answer** tag in its top right corner. Whether it's right is shown by its mark and colour.
 - Each attempt is saved as soon as it's made, so a quiz can be closed and resumed.
-- You can end a quiz early and go to results.
+- You can end a quiz early and go to results, after one confirmation. Answers already saved stand, and questions you never reached don't count against the score.
+- Option order is fixed per quiz and question, so resuming shows the same order and the number keys still match. Each question can be attempted once per quiz.
+- Nothing that could give the answer away, including a doubt's note and the question's category, leaves the server until the question is locked. The category then shows beside the question.
+- **Flag** works in one press, with an optional reason and **Unflag**. In after-each feedback, a flagged question can be left without answering it, and no attempt is logged.
 
 **Feedback: After each question**
 
@@ -151,7 +158,7 @@ Both feedback modes share these:
 **Feedback: At the end**
 
 1. There is no Submit or Reveal answer, only **Next**. Nothing shows whether you were right.
-2. Pressing **Next** records your answer and locks it, and there is no going back. Pressing it with nothing selected skips the question, and no attempt is logged.
+2. Pressing **Next** records your answer and locks it, and there is no going back. Pressing it with nothing selected skips the question, and no attempt is logged. A short note says so while nothing is selected.
 3. Answers can be inspected afterwards on the results screen.
 4. Keyboard: number keys select, Enter moves on.
 
@@ -217,10 +224,22 @@ Both routes below end in the same **canonical JSON format**, validated by one sh
 
 **Route A, built first:**
 
-- **JSON upload** in the app, with a validation report and preview.
-- A **Claude Code skill** that converts a document into that JSON, or generates new questions outside the app, using your Claude Code plan rather than API credits.
+- **Import screen (`/import`):** choose a JSON file and see a preview, with problems that block it, warnings that don't, what would be new, updated, unchanged or duplicated, and the questions rendered with their answers. Nothing is saved until you press Import. **Try the first 10 only** imports a trial, and importing the same file later adds the rest. The screen also lists sources and can delete one with no attempts, to clear out a trial.
+- **A skill for the Claude apps** (`skill/creating-question-banks`, built into a zip by `npm run skill:build`) that produces that JSON using your Claude plan rather than API credits. It works for any exam the user names, and carries the app's exams only as a convenience. It runs the same checks as the import screen, because its validator is bundled from the same code. It finishes the whole file without stopping for a check, then shows 2-3 sample questions alongside it. Any feedback goes back to the same chat, which regenerates the file.
 
-The format covers all three question types from the start, including free-form questions with their model answers and multiple choice questions with their per-answer text. The skill keeps any per-answer text in the source, and can optionally write what's missing, which avoids API costs later.
+The skill has three modes:
+
+| Mode | Input | Result |
+|---|---|---|
+| **A: Copy** | Existing questions (PDF, web page, and so on) | Copied exactly, in the form given, with only obvious errors corrected and listed in the report |
+| **B: From material** | Exam prep information with no questions (syllabus, objectives, notes) | New questions based on that material |
+| **C: From research** | Nothing uploaded | New questions from a rigorous web search, favouring official sources, with each correct answer linking to its evidence |
+
+Modes B and C write multiple choice questions unless you specifically ask for free-form ones. In every mode, any answer text in the source is kept: text about one option on that option, and the rest on the question. Mode A writes no new text unless asked. Modes B and C write text for correct answers. Wrong answers stay blank unless asked, for the app to generate on request.
+
+When an exam covers one version or platform, such as OutSystems 11 Reactive apps, questions about another one, such as older versions or Traditional Web apps, are kept with a short note in parentheses at the end of the question text, such as "(Traditional Web)".
+
+The format covers all three question types from the start, including free-form questions with their model answers and multiple choice questions with their per-answer text.
 
 **Route B, in-app pipeline, built later:**
 
@@ -233,8 +252,14 @@ The format covers all three question types from the start, including free-form q
 Rules for both routes:
 
 - Images aren't supported, so questions that depend on one are left out of the bank and listed in the import report. This includes the image questions in the OutSystems practice exam.
-- Duplicates (matching `contentHash`) are flagged in review.
-- Re-importing with the same `externalId` updates the question and keeps its history.
+- Duplicates (matching `contentHash` anywhere in the exam) are shown in review and skipped unless you choose to include them, and it's pointed out if two sources disagree on the answer.
+- Re-importing with the same `externalId` updates the question and keeps its history, including its option IDs. `externalId` is recommended rather than required. Without one, a question is matched by its text within the source, so one whose wording changes counts as new.
+- Questions the file doesn't mention are left alone.
+- If an update changes the answer key, past answers are marked again, the same as a correction in Manage.
+- A question with a `reviewNote` is how the skill raises a doubt, such as a source's answer that looks wrong, without silently changing it. See Quality in section 2.
+- **The file wins.** Re-importing overwrites changes made in the app to that question's text, options and answers, including hand edits. The exceptions: a question deleted in the app stays deleted, and a flag stays. If the update changes the question, any doubt in the file opens for review again.
+- **Source text is ground truth.** Explanation text from a source can replace anything. AI-written text only fills a blank or replaces other AI-written text, and the preview says where it was held back. A blank in a file never wipes existing text.
+- **Categories:** the preview lists every category name in the file and whether it's an official category, an official topic, an unofficial one added before, or a name mapped before. For each new name you choose: put its questions into an existing category or topic, which merges them, or keep it as a new unofficial category. A name that matches an existing one apart from case is suggested. Choices are remembered, so the next file from that source imports the same way. Renaming and merging existing categories comes with Manage.
 
 ## 6. Claude features
 
@@ -255,7 +280,7 @@ Implementation notes:
 - Use structured outputs with Zod validation for generation, extraction, judging and explanations. Stage 10 needs to confirm this combines cleanly with web search.
 - Log token usage for every call in `ai_calls`, visible in the data inspector.
 
-**Generation form:** exam, categories, count, target difficulty, format (multiple choice or free-form), and optional reference material (pasted or uploaded). The exam's stored description and syllabus are included as context. The target source defaults to **Generated**, can be renamed in place, and can be swapped for any existing source. The Chapter defaults to a dated batch label, such as "Batch 2026-11-04", and can be edited. Generated multiple choice questions include per-answer text for every option. Results always go to the draft review screen before saving.
+**Generation form:** exam, categories, count, target difficulty, format (multiple choice or free-form), and optional reference material (pasted or uploaded). The exam's stored description and syllabus are included as context. The target source defaults to **Generated**, can be renamed in place, and can be swapped for any existing source. The Chapter defaults to a dated batch label, such as "Batch 2026-11-04", and can be edited. Generated multiple choice questions include per-answer text for the correct options, and the rest can be generated on request, the same as the skill. Results always go to the draft review screen before saving.
 
 **Explanations:** at most one generated explanation per question, and it doesn't depend on which answer you chose. One API call writes the per-answer text for every option on the question at once (2-5 answers), which keeps token use down.
 

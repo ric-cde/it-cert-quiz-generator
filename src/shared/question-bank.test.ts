@@ -48,6 +48,8 @@ describe.each<[string, object]>([
   ['a multi-answer question where all are correct', bankWith({ ...single, type: 'multi', options: [option(true), option(true)] })],
   ['option text and a locked order', bankWith({ ...single, lockOptionOrder: true, options: [{ ...option(true), explanationMd: 'Why', explanationOrigin: 'source' }, option(false)] })],
   ['a free-form question', bankWith({ externalId: 'q1', type: 'free_form', category: 'Logic', bodyMd: 'Why?', modelAnswerMd: 'Because' })],
+  ['a question with no externalId', bankWith({ type: 'single', category: 'Logic', bodyMd: 'x', options: single.options })],
+  ['a review note', bankWith({ ...single, reviewNote: 'The source says B, but the code does not compile.' })],
   ['a $schema link and omitted questions', bankWith(single, { $schema: './question-bank.schema.json', omitted: [{ reference: 'Q2', reason: 'Depends on an image' }] })],
 ])('accepts %s', (_name, bank) => {
   it('under both schemas', () => {
@@ -65,7 +67,6 @@ describe.each<[string, object]>([
   ['a free-form question with no model answer', bankWith({ externalId: 'q1', type: 'free_form', category: 'Logic', bodyMd: 'Why?' })],
   ['a multiple choice question with no options', bankWith({ externalId: 'q1', type: 'single', category: 'Logic', bodyMd: 'Why?' })],
   ['an unknown question type', bankWith({ ...single, type: 'matching' })],
-  ['a question with no externalId', bankWith({ type: 'single', category: 'Logic', bodyMd: 'x', options: single.options })],
   ['a question with no category', bankWith({ externalId: 'q1', type: 'single', bodyMd: 'x', options: single.options })],
   ['a blank question', bankWith({ ...single, bodyMd: '   ' })],
   ['an unknown field on a question', bankWith({ ...single, difficulty: 5 })],
@@ -93,6 +94,12 @@ describe('checks only made on import', () => {
       }),
     )
     expect(result.error?.issues[0]?.message).toBe('externalId "q1" is used more than once')
+  })
+
+  it('allows any number of questions with no externalId', () => {
+    const { externalId: _, ...noId } = single
+    const result = questionBankSchema.safeParse(bankWith(single, { chapters: [{ name: 'One', questions: [noId, noId] }] }))
+    expect(result.success).toBe(true)
   })
 
   it('rejects a chapter name used twice', () => {

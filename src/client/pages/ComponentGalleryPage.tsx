@@ -1,18 +1,27 @@
+import { FlagControl } from '@/components/FlagControl'
+import { QuizProgress } from '@/components/QuizProgress'
+import { QuizScore } from '@/components/QuizScore'
+import { NoExplanation, QuestionExplanation } from '@/components/QuestionExplanation'
 import { Copy, Flag, Pencil, Sparkles } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { AnswerOption, answerState } from '@/components/AnswerOption'
+import { ChapterPreview, IssueList, QuestionPreview, TrustTag } from '@/components/BankPreview'
 import { Button, type ButtonVariant } from '@/components/Button'
+import { CategoryList } from '@/components/CategoryList'
 import { CodeBlock } from '@/components/CodeBlock'
 import { DataTable } from '@/components/DataTable'
 import { TextArea, TextField } from '@/components/Field'
+import { FileDrop } from '@/components/FileDrop'
 import { FilterField, FilterPanel, LiveCount, type MaxQuestions, MaxQuestionsPicker, Segmented, Switch } from '@/components/Filters'
 import { Kbd } from '@/components/Kbd'
 import { Markdown } from '@/components/Markdown'
 import { ProgressBar } from '@/components/ProgressBar'
 import { QuestionCard } from '@/components/QuestionCard'
 import { Spinner } from '@/components/Spinner'
+import { ReviewNotice } from '@/components/ReviewNotice'
 import { RandomTile, SourceTile, Tile, TileGrid } from '@/components/Tile'
 import { Verdict, type VerdictKind } from '@/components/Verdict'
+import type { CategoryChoice, ExamCategory, PlannedQuestion } from '../../shared/import'
 import type { InspectorRow, SortDir } from '../../shared/inspector'
 
 const SECTIONS = [
@@ -25,12 +34,14 @@ const SECTIONS = [
   ['progress', 'Progress bars'],
   ['tiles', 'Tiles'],
   ['answers', 'Answer options'],
+  ['quiz', 'Taking a quiz'],
   ['verdicts', 'Verdicts'],
   ['code', 'Code blocks'],
   ['markdown', 'Markdown'],
   ['filters', 'Filters'],
   ['fields', 'Text fields'],
   ['data-tables', 'Data tables'],
+  ['importing', 'Importing'],
 ] as const
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: string; children: ReactNode }) {
@@ -662,6 +673,141 @@ const TABLE_SAMPLE: InspectorRow[] = [
   },
 ]
 
+const PREVIEW_SAMPLES: PlannedQuestion[] = [
+  {
+    action: 'new',
+    changes: [],
+    warnings: [],
+    question: {
+      externalId: 'mock-q1',
+      type: 'single',
+      category: 'A category',
+      bodyMd: 'What does this print?\n\n```java\nSystem.out.println(1 + 1);\n```',
+      options: [
+        { bodyMd: '`2`', isCorrect: true, explanationMd: 'Correct! Both are numbers, so they add.', explanationOrigin: 'source' },
+        { bodyMd: '`11`', isCorrect: false, explanationMd: 'This would need a `String` operand.', explanationOrigin: 'generated' },
+      ],
+    },
+  },
+  {
+    action: 'updated',
+    changes: ['wording', 'correct answer'],
+    warnings: ['The question asks for 2 answers, but 1 marked correct.'],
+    question: {
+      type: 'multi',
+      category: 'A category',
+      bodyMd: 'Which are true? Choose two.',
+      lockOptionOrder: true,
+      reviewNote: 'The source marks only one answer.',
+      options: [
+        { bodyMd: 'The first', isCorrect: true },
+        { bodyMd: 'All of the above', isCorrect: false },
+      ],
+    },
+  },
+  {
+    action: 'new',
+    changes: [],
+    warnings: [],
+    duplicateOf: { place: 'Mock source, Chapter 1', answersDiffer: true },
+    question: {
+      externalId: 'mock-q3',
+      type: 'free_form',
+      category: 'A category',
+      bodyMd: 'Why are tests useful?',
+      modelAnswerMd: 'They catch mistakes early, and make change safer.',
+    },
+  },
+]
+
+const GALLERY_EXAM_CATEGORIES: ExamCategory[] = [
+  { id: 1, name: 'Fetching Data', parent: null, official: true },
+  { id: 2, name: 'Aggregates', parent: 'Fetching Data', official: true },
+  { id: 3, name: 'UI Design', parent: null, official: true },
+  { id: 4, name: 'Performance', parent: null, official: false },
+]
+
+function CategoryMapping() {
+  const [choices, setChoices] = useState<Record<string, CategoryChoice>>({ 'Form stuff': { keep: true }, aggregates: { map: 2 } })
+  return (
+    <CategoryList
+      categories={[
+        { name: 'Fetching Data', count: 6, status: 'official', target: GALLERY_EXAM_CATEGORIES[0] },
+        { name: 'Aggregates', count: 4, status: 'topic', target: GALLERY_EXAM_CATEGORIES[1] },
+        { name: 'Performance', count: 1, status: 'unofficial', target: GALLERY_EXAM_CATEGORIES[3] },
+        { name: 'Screens', count: 3, status: 'remembered', target: GALLERY_EXAM_CATEGORIES[2] },
+        { name: 'aggregates', count: 2, status: 'new', suggestion: GALLERY_EXAM_CATEGORIES[1] },
+        { name: 'Form stuff', count: 2, status: 'new' },
+      ]}
+      examCategories={GALLERY_EXAM_CATEGORIES}
+      choices={{ Screens: { map: 3 }, ...choices }}
+      onChoose={(name, choice) => setChoices((current) => ({ ...current, [name]: choice }))}
+    />
+  )
+}
+
+function Importing() {
+  const [chosen, setChosen] = useState<string>()
+  return (
+    <>
+      <SpecimenGrid>
+        <Specimen label="File drop">
+          <FileDrop label="Choose a file" hint={chosen ?? 'Or drop one here'} onFile={(file) => setChosen(file.name)} />
+        </Specimen>
+        <Specimen label="With an error">
+          <FileDrop label="Choose a file" error="This file seems to be cut off." onFile={() => {}} />
+        </Specimen>
+        <Specimen label="Disabled">
+          <FileDrop label="Choose a file" disabled onFile={() => {}} />
+        </Specimen>
+      </SpecimenGrid>
+      <Specimen label="Problems, which stop an import" className="mt-6">
+        <IssueList tone="wrong" issues={[{ location: 'Chapter 1, question 3 (q3), options', message: 'A single answer question needs exactly one correct option' }]} />
+      </Specimen>
+      <Specimen label="Warnings" className="mt-6">
+        <IssueList tone="amber" issues={[{ location: 'Chapter 1', message: "Question numbers 4, 5 are missing and aren't in omitted." }]} />
+      </Specimen>
+      <Specimen label="Categories in a file: the exam's own, and names to choose a place for" className="mt-6">
+        <div className="max-w-2xl">
+          <CategoryMapping />
+        </div>
+      </Specimen>
+      <Specimen label="How far a source can be trusted" className="mt-6">
+        <p className="flex flex-wrap gap-2">
+          <TrustTag trust="official" />
+          <TrustTag trust="third_party" />
+          <TrustTag trust="ai" />
+        </p>
+      </Specimen>
+      <Specimen label="Left out" className="mt-6">
+        <IssueList issues={[{ location: 'Practice exam 1, question 17', message: 'Depends on an image' }]} />
+      </Specimen>
+      <Specimen label="On a question in a quiz whose answer is in doubt, before answering" className="mt-6">
+        <div className="max-w-2xl">
+          <ReviewNotice answered={false} note="The source says 'a3', but this prints 'a12'." />
+        </div>
+      </Specimen>
+      <Specimen label="The same question, once answered" className="mt-6">
+        <div className="max-w-2xl">
+          <ReviewNotice answered note="The source says 'a3', but this prints 'a12'." />
+        </div>
+      </Specimen>
+      <Specimen label="Question previews: new, updated with warnings, and duplicate" className="mt-6">
+        <div className="max-w-2xl space-y-3">
+          {PREVIEW_SAMPLES.map((planned, index) => (
+            <QuestionPreview key={index} planned={planned} />
+          ))}
+        </div>
+      </Specimen>
+      <Specimen label="A chapter. Open it to see its questions." className="mt-6">
+        <div className="max-w-2xl">
+          <ChapterPreview name="Chapter 1" questions={PREVIEW_SAMPLES} />
+        </div>
+      </Specimen>
+    </>
+  )
+}
+
 function DataTables() {
   const [sort, setSort] = useState('id')
   const [dir, setDir] = useState<SortDir>('asc')
@@ -710,6 +856,47 @@ function DataTables() {
   )
 }
 
+function QuizParts() {
+  const [flagged, setFlagged] = useState(false)
+  return (
+    <SpecimenGrid>
+      <Specimen label="Quiz progress: neutral, because green and red mean marked">
+        <QuizProgress position={7} total={20} />
+      </Specimen>
+      <Specimen label="Flag">
+        <FlagControl flagged={flagged} reason={null} onFlag={() => setFlagged(true)} onUnflag={() => setFlagged(false)} onSaveReason={() => {}} />
+      </Specimen>
+      <Specimen label="Flagged, with a reason">
+        <FlagControl flagged reason="Two options say the same thing" onFlag={() => {}} onUnflag={() => {}} onSaveReason={() => {}} />
+      </Specimen>
+      <Specimen label="Doubt: before answering">
+        <ReviewNotice note="The source marks A, but B looks right." answered={false} />
+      </Specimen>
+      <Specimen label="Doubt: after answering">
+        <ReviewNotice note="The source marks A, but B looks right." answered />
+      </Specimen>
+      <Specimen label="Explanation of the whole question" className="col-span-full">
+        <QuestionExplanation markdown="Both use a reference type that the compiler can work out." />
+      </Specimen>
+      <Specimen label="Explanation written by AI" className="col-span-full">
+        <QuestionExplanation markdown="`IsDataFetched` is True once the data has arrived." generated />
+      </Specimen>
+      <Specimen label="A missed question with no text anywhere">
+        <NoExplanation />
+      </Specimen>
+      <Specimen label="Score" className="col-span-full">
+        <QuizScore results={{ correct: 14, incorrect: 3, revealed: 2, skipped: 1, notReached: 0 }} />
+      </Specimen>
+      <Specimen label="Score: ended early" className="col-span-full">
+        <QuizScore results={{ correct: 4, incorrect: 1, revealed: 0, skipped: 0, notReached: 15 }} />
+      </Specimen>
+      <Specimen label="Score: ended before answering anything" className="col-span-full">
+        <QuizScore results={{ correct: 0, incorrect: 0, revealed: 0, skipped: 0, notReached: 20 }} />
+      </Specimen>
+    </SpecimenGrid>
+  )
+}
+
 function TryIt() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [chosen, setChosen] = useState<number[]>([])
@@ -745,13 +932,7 @@ function TryIt() {
         <p className="mb-1.5 text-xs text-ink-soft">
           Question {questionIndex + 1} of {DEMO_QUESTIONS.length} · Sample
         </p>
-        <ProgressBar
-          label="Quiz progress"
-          correct={questionIndex + (locked ? 1 : 0)}
-          incorrect={0}
-          total={DEMO_QUESTIONS.length}
-          showPercent={false}
-        />
+        <QuizProgress position={questionIndex} total={DEMO_QUESTIONS.length} />
       </div>
 
       <Markdown className="text-lg">{question.body}</Markdown>
@@ -828,7 +1009,7 @@ export function ComponentGalleryPage() {
           <Section
             id="try-it"
             title="Try it"
-            intro="The parts working together, to judge the feel. Answer or reveal, then move on. The keyboard shortcuts shown start working in Stage 5."
+            intro="The parts working together, to judge the feel. Answer or reveal, then move on. The keyboard shortcuts work on the real quiz screen."
           >
             <TryIt />
           </Section>
@@ -871,6 +1052,9 @@ export function ComponentGalleryPage() {
           >
             <Answers />
           </Section>
+          <Section id="quiz" title="Taking a quiz" intro="The parts of the quiz screen that aren't shown elsewhere.">
+            <QuizParts />
+          </Section>
           <Section id="verdicts" title="Verdicts">
             <div className="flex flex-wrap gap-2">
               {VERDICTS.map((kind) => (
@@ -894,6 +1078,9 @@ export function ComponentGalleryPage() {
           </Section>
           <Section id="data-tables" title="Data tables" intro="Used by the data inspector.">
             <DataTables />
+          </Section>
+          <Section id="importing" title="Importing" intro="Used by the import screen.">
+            <Importing />
           </Section>
         </div>
       </div>

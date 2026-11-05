@@ -2,7 +2,7 @@
 
 This is the work needed to deliver v1, in build order. Details are in `spec.md`. Each stage ends with something you can open and review before the next one starts.
 
-**Timeline:** OutSystems comes first and doubles as the real-world test of the app. Java OCP study follows later in November 2026. The stages are ordered to suit that: everything OutSystems needs comes first, then what Java OCP needs most. Question generation and in-app import come last because the Claude Code skill already covers getting questions in.
+**Timeline:** OutSystems comes first and doubles as the real-world test of the app. Java OCP study follows later in November 2026. The stages are ordered to suit that: everything OutSystems needs comes first, then what Java OCP needs most. Question generation and in-app import come last because the skill for the Claude apps already covers getting questions in.
 
 **Size key:** S = small, M = medium, L = large. These compare the stages with each other and aren't time estimates.
 
@@ -55,7 +55,7 @@ Build the full schema, including users and roles. Seed the admin user and your t
 **You review:** the data model in table form, and the seeded categories.
 
 ### 4. Getting questions in
-Define the canonical JSON format for all question types, build the upload screen with validation and preview, and write the Claude Code skill for converting documents and generating questions. Free-form questions can be imported from here, but stay out of quizzes until Stage 11.
+Define the canonical JSON format for all question types, build the import screen with validation and preview, and write the skill for the Claude apps, which copies existing questions or writes new ones from uploaded material or web research. Free-form questions can be imported from here, but stay out of quizzes until Stage 11.
 
 **You review:** convert your OutSystems practice exam and check the result in the inspector, including the report of image questions left out. This tests the format against real, messy material before the quiz is built on it.
 
