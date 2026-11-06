@@ -412,6 +412,12 @@ function Tiles() {
         <Specimen label="Diminished (Random is on)">
           <Tile title="Concurrency" count={42} progress={progress} diminished />
         </Specimen>
+        <Specimen label="Diminished, nothing to add">
+          <Tile title="Concurrency" count={0} progress={progress} diminished />
+        </Specimen>
+        <Specimen label="Nothing to add now (no box)">
+          <Tile title="Concurrency" count={0} progress={progress} />
+        </Specimen>
         <Specimen label="No questions">
           <Tile title="Concurrency" count={0} progress={none} empty />
         </Specimen>

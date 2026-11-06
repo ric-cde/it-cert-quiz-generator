@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 
 /**
- * Which part of a bar the status filter picks. That part stands taller than the rest, with a thin
- * white outline and a second in its own colour. Unsolved picks the yellow part as a whole, though a
+ * Which part of a bar the status filter picks. That part stands a little taller than the rest, square-cornered
+ * to sit flush against its neighbours, with a thin white outline and a second in its own colour. Unsolved picks the yellow part as a whole, though a
  * question right once and wrong since is in it. All picks nothing.
  */
 export type ProgressEmphasis = 'all' | 'unanswered' | 'incorrect' | 'unsolved'
@@ -17,10 +17,10 @@ const picked: Record<ProgressEmphasis, Segment | null> = {
 
 const SEGMENT = 'transition-[width,height,box-shadow] duration-500 ease-out-soft first:rounded-l-full last:rounded-r-full'
 const STANDS_OUT: Record<Segment, string> = {
-  correct: 'relative z-10 h-3.5 rounded-[3px]! shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-correct)]',
-  incorrect: 'relative z-10 h-3.5 rounded-[3px]! shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-amber)]',
+  correct: 'relative z-10 h-3 rounded-none! shadow-[0_0_0_1px_var(--color-surface),0_0_0_2.5px_var(--color-correct)]',
+  incorrect: 'relative z-10 h-3 rounded-none! shadow-[0_0_0_1px_var(--color-surface),0_0_0_2.5px_var(--color-amber)]',
   unanswered:
-    'relative z-10 h-3.5 rounded-[3px]! bg-line shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-line-strong)]',
+    'relative z-10 h-3 rounded-none! bg-line shadow-[0_0_0_1px_var(--color-surface),0_0_0_2.5px_var(--color-line-strong)]',
 }
 
 export type ProgressCounts = {

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { RadioGroup, Switch as RadixSwitch } from 'radix-ui'
 import type { ReactNode, Ref } from 'react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Button } from './Button'
 import { Kbd } from './Kbd'
 import { inputClass } from './Field'
@@ -133,6 +133,11 @@ export function MaxQuestionsPicker({
   inputRef?: Ref<HTMLInputElement>
 }) {
   const isPreset = value === 'max' || (PRESETS as readonly number[]).includes(value)
+  // What's typed, while it isn't a number yet (such as when you've just cleared it). The cap stays
+  // as it was until you type one. Picking a preset, or leaving the field, shows the cap again.
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = isPreset ? '' : String(value)
+  const text = draft !== null && (draft === '' || parseMaxQuestions(draft) === value) ? draft : shown
 
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Max questions">
@@ -149,11 +154,13 @@ export function MaxQuestionsPicker({
         step={1}
         ref={inputRef}
         aria-label="Custom number of questions"
-        value={isPreset ? '' : value}
+        value={text}
         onChange={(event) => {
+          setDraft(event.target.value)
           const parsed = parseMaxQuestions(event.target.value)
           if (parsed !== null) onChange?.(parsed)
         }}
+        onBlur={() => setDraft(null)}
         // Three digits is plenty. Left blank: a placeholder standing in for a label is a known
         // usability problem, and the field's label is there for screen readers.
         className={clsx(inputClass(), 'w-[4.25rem]')}

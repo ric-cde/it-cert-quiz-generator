@@ -248,11 +248,37 @@ describe('TakeExamPage', () => {
     expect(screen.getByRole('button', { name: /^Odd ones/ })).not.toHaveClass('bg-accent-soft')
   })
 
-  it('outlines in dots the tiles Random draws from', async () => {
+  it('gives the tiles Random draws from a soft blue background and a plain border', async () => {
     renderPage()
     await loaded()
-    expect(screen.getByRole('button', { name: /^Logic/ })).toHaveClass('border-dotted')
-    expect(screen.getByRole('button', { name: /^Empty/ })).not.toHaveClass('border-dotted')
+    const logic = screen.getByRole('button', { name: /^Logic/ })
+    expect(logic).toHaveClass('bg-accent-soft')
+    expect(logic).not.toHaveClass('border-dotted')
+    expect(screen.getByRole('button', { name: /^Empty/ })).not.toHaveClass('bg-accent-soft')
+  })
+
+  it('shows a ticked box on picked tiles and an empty one on tiles that could be picked', async () => {
+    renderPage('/exam/2?categories=1&status=all')
+    await loaded()
+    expect(screen.getByRole('button', { name: /^Logic/ }).querySelector('[data-checkbox]')).toHaveAttribute('data-checkbox', 'on')
+    expect(screen.getByRole('button', { name: /^Alpha 27 questions/ }).querySelector('[data-checkbox]')).toHaveAttribute(
+      'data-checkbox',
+      'off',
+    )
+    // Nothing to add, so no box.
+    expect(screen.getByRole('button', { name: /^Empty/ }).querySelector('[data-checkbox]')).toBeNull()
+  })
+
+  it('lets you clear the number field and type a new number', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await loaded()
+    const box = screen.getByLabelText('Custom number of questions')
+    await user.type(box, '2')
+    await user.keyboard('{Backspace}')
+    expect(box).toHaveValue(null)
+    await user.keyboard('5')
+    expect(box).toHaveValue(5)
   })
 
   it('leaves typing alone', async () => {

@@ -1,16 +1,33 @@
 import clsx from 'clsx'
-import { BadgeCheck, BadgeMinus, Check, ChevronDown, Dices } from 'lucide-react'
+import { BadgeCheck, BadgeMinus, ChevronDown, Dices } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Kbd } from './Kbd'
 import { ProgressBar, type ProgressCounts, type ProgressEmphasis } from './ProgressBar'
 
-/** A filled square checkbox, so it can't be mistaken for the round official badge. */
-function SelectedBadge() {
+/**
+ * A square checkbox in the tile's corner: a filled square inside when picked, empty on a tile that
+ * could be added. Nothing like the round official badge, which has a tick. The button's
+ * aria-pressed already tells screen readers, so it's hidden from them.
+ */
+function CheckBadge({ on }: { on: boolean }) {
   return (
-    <span className="absolute -top-1.5 -right-1.5 flex size-5 animate-pop items-center justify-center rounded-[5px] bg-accent text-on-accent shadow-raised">
-      <Check className="size-3" strokeWidth={4} aria-hidden="true" />
+    <span
+      aria-hidden="true"
+      data-checkbox={on ? 'on' : 'off'}
+      className={clsx(
+        'absolute -top-1.5 -right-1.5 flex size-[1.125rem] items-center justify-center rounded-[3px] border-[1.5px] bg-surface',
+        on ? 'animate-pop border-accent shadow-raised' : 'border-line-strong',
+      )}
+    >
+      {on && <span className="size-2 rounded-[1.5px] bg-accent" />}
     </span>
   )
+}
+
+/** Picked, or with questions it could add. A tile with none to add shows no box. */
+function checkBadge({ selected, count, empty }: { selected: boolean; count: number; empty: boolean }) {
+  if (selected) return <CheckBadge on />
+  return count > 0 && !empty ? <CheckBadge on={false} /> : null
 }
 
 function tileClass({
@@ -34,11 +51,11 @@ function tileClass({
         ? // A thicker border than any other tile. The inner ring adds to it without moving the content.
           'cursor-pointer border-accent bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--color-accent)]'
         : // While Random is on, tiles go flat, with grey badges and faded bars. The text stays readable.
-          // Those Random draws from have a dotted accent border.
+          // Those Random draws from have the soft blue background.
           diminished
           ? clsx(
-              'cursor-pointer bg-transparent hocus:border-solid hocus:border-accent hocus:bg-surface hocus:shadow-raised',
-              included ? 'border-dotted border-accent' : 'border-line',
+              'cursor-pointer border-line hocus:border-accent hocus:shadow-raised',
+              included ? 'bg-accent-soft' : 'bg-transparent hocus:bg-surface',
             )
           : clsx(
               'cursor-pointer border-line-strong/60 shadow-card hocus:border-accent hocus:shadow-raised',
@@ -62,7 +79,7 @@ export type TileProps = {
   /**
    * Some of its questions are in the quiz because of other picks, such as a category's when a
    * source is selected. Shown with a soft blue background. Under Random, it's every tile with
-   * questions, shown with a dotted border instead.
+   * questions.
    */
   included?: boolean
   /** For categories: from the exam's own syllabus, or added by an imported file. */
@@ -117,7 +134,7 @@ export function Tile(props: TileProps) {
       data-force={force}
       className={clsx(tileClass({ selected, diminished, empty: empty && !selected, included: isIncluded(props) }), 'p-3')}
     >
-      {selected && <SelectedBadge />}
+      {checkBadge({ selected, count: props.count, empty })}
       <TileBody {...props} />
     </button>
   )
@@ -157,7 +174,7 @@ export function SourceTile({
             'p-3 pb-10',
           )}
         >
-          {selected && <SelectedBadge />}
+          {checkBadge({ selected, count: tile.count, empty })}
           <TileBody {...tile} />
         </button>
         <button
@@ -209,7 +226,7 @@ export function RandomTile({
         'flex items-center gap-3 p-3',
       )}
     >
-      {selected && <SelectedBadge />}
+      {selected && <CheckBadge on />}
       <Dices className={clsx('size-6 flex-none', selected ? 'text-accent' : 'text-ink-soft')} aria-hidden="true" />
       <span className="flex-1">
         <span className="block font-semibold leading-snug">Random</span>
