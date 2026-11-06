@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import type { ImportPlan, PlannedQuestion } from '../../shared/import'
+import { SAME_TEXT_WARNING } from '../../shared/question-bank-checks'
 import { ImportPage } from './ImportPage'
 
 vi.mock('@/lib/api', () => ({
@@ -43,7 +44,7 @@ const planned = (overrides: Partial<PlannedQuestion> = {}): PlannedQuestion => (
 const plan = (overrides: Partial<ImportPlan> = {}): ImportPlan => ({
   ok: true,
   exam: 'An exam',
-  source: { name: 'A source', origin: 'upload', trust: null, reference: null, exists: false },
+  source: { name: 'A source', origin: 'upload', trust: null, reference: null, exists: false, icon: 'fox', iconChoices: ['fox', 'owl', 'panda'] },
   categories: [{ name: 'Logic', count: 1, status: 'official', target: { id: 1, name: 'Logic', parent: null, official: true } }],
   examCategories: [
     { id: 1, name: 'Logic', parent: null, official: true },
@@ -135,6 +136,27 @@ describe('ImportPage', () => {
     expect(screen.getByRole('button', { name: 'Import 1 question' })).toBeEnabled()
   })
 
+  it('explains the capital letters false alarm only when the same-text warning is shown', async () => {
+    postPreview.mockImplementation(async () =>
+      json(plan({ warnings: [{ location: 'Chapter 1, question 2', message: SAME_TEXT_WARNING }] })),
+    )
+    renderPage()
+    await chooseFile()
+
+    expect(await screen.findByText(/might be false alarms/)).toHaveTextContent(/"Long" and "long"/)
+  })
+
+  it('leaves out the capital letters note for other warnings', async () => {
+    postPreview.mockImplementation(async () =>
+      json(plan({ warnings: [{ location: 'Chapter 1', message: 'Question numbers 4 are missing.' }] })),
+    )
+    renderPage()
+    await chooseFile()
+
+    expect(await screen.findByText(/Question numbers 4 are missing/)).toBeInTheDocument()
+    expect(screen.queryByText(/false alarms/)).not.toBeInTheDocument()
+  })
+
   it('draws a chapter only when opened, with the answer and its origin showing', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -163,7 +185,7 @@ describe('ImportPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Import 1 question' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('1 question added.')
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {} } })
+    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox' } })
     expect(screen.getByRole('link', { name: /data inspector/ })).toHaveAttribute('href', '/dev/data/questions')
   })
 
@@ -225,6 +247,7 @@ describe('ImportPage', () => {
           bank: { formatVersion: 1 },
           includeDuplicates: false,
           categoryChoices: { forms: { map: 2 }, 'Odd one': { map: 1 } },
+          icon: 'fox',
         },
       })
     })
@@ -238,13 +261,73 @@ describe('ImportPage', () => {
 
   it('shows how far the source can be trusted, and where it comes from', async () => {
     postPreview.mockImplementation(async () =>
-      json(plan({ source: { name: 'A source', origin: 'upload', trust: 'official', reference: 'https://example.com/exam', exists: false } })),
+      json(
+        plan({
+          source: { name: 'A source', origin: 'upload', trust: 'official', reference: 'https://example.com/exam', exists: false, icon: 'fox', iconChoices: ['fox'] },
+        }),
+      ),
     )
     renderPage()
     await chooseFile()
 
     expect(await screen.findByText('Official')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'https://example.com/exam' })).toHaveAttribute('href', 'https://example.com/exam')
+  })
+
+  describe('source icon', () => {
+    it('shows the suggested icon, and imports with it by default', async () => {
+      renderPage()
+      const user = await chooseFile()
+
+      expect(await screen.findByRole('button', { name: 'Source icon: Fox. Choose a different one' })).toBeInTheDocument()
+      expect(screen.getByText(/Its icon is fox/)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Import 1 question' }))
+      expect(postCommit).toHaveBeenCalledWith({ json: expect.objectContaining({ icon: 'fox' }) })
+    })
+
+    it('lets the user pick another from the ones offered, and imports with it', async () => {
+      renderPage()
+      const user = await chooseFile()
+
+      await user.click(await screen.findByRole('button', { name: /Source icon: Fox/ }))
+      // Only what the server offered, so nothing another source has.
+      expect(screen.queryByRole('button', { name: 'Dodo' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Panda' }))
+
+      expect(screen.getByRole('button', { name: 'Source icon: Panda. Choose a different one' })).toBeInTheDocument()
+      expect(screen.getByText(/Its icon is panda/)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Import 1 question' }))
+      expect(postCommit).toHaveBeenCalledWith({ json: expect.objectContaining({ icon: 'panda' }) })
+    })
+
+    it('sends the chosen icon with a trial import too', async () => {
+      postPreview.mockImplementation(async () =>
+        json(plan({ counts: { new: 11, updated: 0, unchanged: 0, deleted: 0, duplicates: 0, toReview: 0, total: 11 } })),
+      )
+      renderPage()
+      const user = await chooseFile()
+      await user.click(await screen.findByRole('button', { name: /Source icon: Fox/ }))
+      await user.click(screen.getByRole('button', { name: 'Owl' }))
+      await user.click(screen.getByRole('button', { name: 'Try the first 10 only' }))
+      expect(postCommit).toHaveBeenCalledWith({ json: expect.objectContaining({ icon: 'owl', limit: 10 }) })
+    })
+
+    it('shows each source in the list with its icon', async () => {
+      getSources.mockImplementation(async () =>
+        json([
+          { id: 1, exam: 'An exam', name: 'Alpha', origin: 'upload', trust: null, reference: null, icon: 'fox', chapters: 1, questions: 2, flagged: 0, toReview: 0, attempts: 0 },
+          { id: 2, exam: 'An exam', name: 'Beta', origin: 'upload', trust: null, reference: null, icon: null, chapters: 1, questions: 2, flagged: 0, toReview: 0, attempts: 0 },
+        ]),
+      )
+      renderPage()
+
+      const list = await screen.findByRole('list')
+      const [alpha, beta] = within(list).getAllByRole('listitem')
+      expect(alpha!.querySelector('img')).not.toBeNull()
+      // No icon yet: a paw print instead.
+      expect(beta!.querySelector('img')).toBeNull()
+      expect(beta!.querySelector('svg.lucide-paw-print')).not.toBeNull()
+    })
   })
 
   it('skips duplicates unless asked, and counts accordingly', async () => {
@@ -258,7 +341,7 @@ describe('ImportPage', () => {
     await user.click(screen.getByRole('switch', { name: 'Also import 1 duplicate' }))
     await user.click(screen.getByRole('button', { name: 'Import 3 questions' }))
 
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: true, categoryChoices: {} } })
+    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: true, categoryChoices: {}, icon: 'fox' } })
   })
 
   it('offers a trial import only for a file bigger than the trial', async () => {
@@ -269,7 +352,7 @@ describe('ImportPage', () => {
     const user = await chooseFile()
 
     await user.click(await screen.findByRole('button', { name: 'Try the first 10 only' }))
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, limit: 10 } })
+    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox', limit: 10 } })
     unmount()
 
     renderPage()

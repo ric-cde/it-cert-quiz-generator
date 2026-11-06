@@ -47,7 +47,7 @@ Question and option text is Markdown, including code blocks. Each option has opt
 | `user_exams` | userId, examId, examDate, passedAt |
 | `categories` | examId, parentId (set for a topic), name, weight (optional), official |
 | `category_aliases` | examId, name, categoryId: a name from a file, and where the user chose to put it |
-| `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`), trust (`official` / `third_party` / `ai`, optional), reference (optional) |
+| `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`), trust (`official` / `third_party` / `ai`, optional), reference (optional), icon (an animal's key) |
 | `chapters` | sourceId, name |
 | `questions` | chapterId, categoryId, type, bodyMd, modelAnswerMd, explanationMd, explanationOrigin, lockOptionOrder, externalId, contentHash, reviewNote, reviewedAt, flaggedAt, flagReason, deletedAt |
 | `options` | questionId, bodyMd, explanationMd, explanationOrigin (`source` / `generated`), isCorrect, position, deletedAt |
@@ -90,6 +90,7 @@ All question types count, and a free-form partial shows yellow. Flagged question
 
 - Rate each **source** from 1 to 5. Higher-rated sources are favoured when prioritising.
 - Each source can also say how far it can be trusted: **official** (the exam vendor's own material, the ground truth), **third-party**, or **AI-written**, plus a **reference** such as a URL or a book and edition. These come from the file, and generated sources count as AI-written unless it says otherwise.
+- Each source has its own **animal icon**, so sources are easy to tell apart on the home cards, the take-exam tiles and the sources list. At import one is suggested that no other source has, and clicking it offers the others that are free. Once every icon is taken, the next sources wrap around and take the icons again from the first. Only the icon's key is stored. The set is a list of keys in `src/shared/source-icons.ts` and its artwork is generated from it by `npm run icons:build`, so the set can be changed later. A source whose icon has been dropped from the set is given a new one when the server starts.
 - **Flag** any question as bad or wrong. Flagged questions are left out of quizzes and appear in a review list where you can fix or unflag them.
 - **Doubts:** a question can arrive with a `reviewNote`, for example when a source's answer looks wrong. It stays in quizzes with a warning, and the note itself, which may give away the answer, shows only after answering. The import screen sends you to `/review`, where you can keep the question as it is, change its answer, or take it out of quizzes, which flags it.
 

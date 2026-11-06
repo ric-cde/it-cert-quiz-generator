@@ -3,6 +3,7 @@ import { BadgeCheck, BadgeMinus, ChevronDown, Dices } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Kbd } from './Kbd'
 import { ProgressBar, type ProgressCounts, type ProgressEmphasis } from './ProgressBar'
+import { SourceIcon } from './SourceIcon'
 
 /**
  * A square checkbox in the tile's corner: a filled square inside when picked, empty on a tile that
@@ -84,6 +85,8 @@ export type TileProps = {
   included?: boolean
   /** For categories: from the exam's own syllabus, or added by an imported file. */
   origin?: 'official' | 'unofficial'
+  /** For sources: the animal shown beside the name. `null` is a source with none yet. */
+  icon?: string | null
   onClick?: () => void
   'data-force'?: string
 }
@@ -100,12 +103,13 @@ function OriginBadge({ origin, muted }: { origin: 'official' | 'unofficial'; mut
   )
 }
 
-function TileBody({ title, count, progress, diminished, origin, empty, emphasis }: TileProps) {
+function TileBody({ title, count, progress, diminished, origin, empty, emphasis, icon }: TileProps) {
   return (
     <>
       {/* The spaces keep the title, count and figure apart when read aloud, as they look on screen. */}
-      <span className={clsx('block font-semibold leading-snug', (diminished || count === 0) && 'text-ink-soft', origin && 'pr-6')}>
-        {title}
+      <span className={clsx('flex items-start gap-2', origin && 'pr-6')}>
+        {icon !== undefined && <SourceIcon icon={icon} className="size-6" muted={diminished || count === 0} />}
+        <span className={clsx('block font-semibold leading-snug', (diminished || count === 0) && 'text-ink-soft')}>{title}</span>
       </span>
       {/* After the title in reading order, though it sits in the corner. */}
       {origin && <OriginBadge origin={origin} muted={Boolean(diminished)} />}{' '}

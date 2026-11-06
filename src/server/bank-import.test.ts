@@ -527,6 +527,7 @@ describe('import', () => {
           origin: 'upload',
           trust: null,
           reference: null,
+          icon: 'fox',
           chapters: 1,
           questions: 2,
           flagged: 1,

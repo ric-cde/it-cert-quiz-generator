@@ -52,7 +52,12 @@ export function practiceData(db: Reader, userId: number, examId: number): Practi
   return {
     exam,
     categories: categoryRows,
-    sources: db.select({ id: sources.id, name: sources.name }).from(sources).where(eq(sources.examId, examId)).orderBy(asc(sources.name)).all(),
+    sources: db
+      .select({ id: sources.id, name: sources.name, icon: sources.icon })
+      .from(sources)
+      .where(eq(sources.examId, examId))
+      .orderBy(asc(sources.name))
+      .all(),
     chapters: db
       .select({ id: chapters.id, name: chapters.name, sourceId: chapters.sourceId })
       .from(chapters)

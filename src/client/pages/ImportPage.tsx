@@ -6,12 +6,15 @@ import { Button, buttonClass } from '@/components/Button'
 import { CategoryList } from '@/components/CategoryList'
 import { FileDrop } from '@/components/FileDrop'
 import { Switch } from '@/components/Filters'
+import { SourceIcon, SourceIconPicker } from '@/components/SourceIcon'
 import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 import { parseBankFile } from '@/lib/bank-file'
 import { HttpError, readJson } from '@/lib/http'
 import type { CategoryChoice, ImportOptions, ImportPlan, ImportResult, SourceSummary } from '../../shared/import'
 import { defaultChoice, isChoosable, SAMPLE_IMPORT_SIZE } from '../../shared/import'
+import { SAME_TEXT_WARNING } from '../../shared/question-bank-checks'
+import { iconName } from '../../shared/source-icons'
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
 
@@ -54,6 +57,7 @@ function PlanView({
   onCancel: () => void
 }) {
   const [includeDuplicates, setIncludeDuplicates] = useState(false)
+  const [icon, setIcon] = useState(plan.source.icon)
   const [categoryChoices, setCategoryChoices] = useState<Record<string, CategoryChoice>>(() =>
     Object.fromEntries(plan.categories.filter(isChoosable).map((category) => [category.name, defaultChoice(category)])),
   )
@@ -63,11 +67,16 @@ function PlanView({
 
   return (
     <section aria-label="Preview" className="mt-6">
-      <h2 className="text-xl">{plan.source.name}</h2>
-      <p className="mt-1 text-sm text-ink-soft">
-        {plan.exam}. {plan.source.exists ? 'This source already exists, so these add to it.' : 'This will be a new source.'}{' '}
-        Nothing is saved yet.
-      </p>
+      <div className="flex items-center gap-3">
+        <SourceIconPicker icon={icon} choices={plan.source.iconChoices} disabled={saving} onChange={setIcon} />
+        <div className="min-w-0">
+          <h2 className="text-xl break-words">{plan.source.name}</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            {plan.exam}. {plan.source.exists ? 'This source already exists, so these add to it.' : 'This will be a new source.'}{' '}
+            Nothing is saved yet. Its icon is {iconName(icon).toLowerCase()}. Click it to choose another.
+          </p>
+        </div>
+      </div>
       {(plan.source.trust || plan.source.reference) && (
         <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
           {plan.source.trust && <TrustTag trust={plan.source.trust} />}
@@ -92,7 +101,11 @@ function PlanView({
       {plan.warnings.length > 0 && (
         <div className="mt-6">
           <h3 className="text-base">{plural(plan.warnings.length, 'warning')}</h3>
-          <p className="mb-2 text-sm text-ink-soft">These are probably mistakes, but won't stop the import.</p>
+          <p className="mb-2 text-sm text-ink-soft">
+            These are probably mistakes, but won't stop the import.
+            {plan.warnings.some((warning) => warning.message === SAME_TEXT_WARNING) &&
+              ' Some might be false alarms: the same-text check ignores capital letters, so options such as "Long" and "long" are flagged even though they differ.'}
+          </p>
           <IssueList issues={plan.warnings} tone="amber" />
         </div>
       )}
@@ -145,12 +158,12 @@ function PlanView({
             variant="primary"
             loading={saving}
             disabled={toImport === 0}
-            onClick={() => onImport({ includeDuplicates, categoryChoices })}
+            onClick={() => onImport({ includeDuplicates, categoryChoices, icon })}
           >
             {toImport === 0 ? 'Nothing to import' : `Import ${plural(toImport, 'question')}`}
           </Button>
           {counts.total > SAMPLE_IMPORT_SIZE && (
-            <Button disabled={saving} onClick={() => onImport({ includeDuplicates, categoryChoices, limit: SAMPLE_IMPORT_SIZE })}>
+            <Button disabled={saving} onClick={() => onImport({ includeDuplicates, categoryChoices, icon, limit: SAMPLE_IMPORT_SIZE })}>
               Try the first {SAMPLE_IMPORT_SIZE} only
             </Button>
           )}
@@ -228,29 +241,34 @@ function SourceRow({ source }: { source: SourceSummary }) {
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-      <div className="min-w-0">
-        <p className="flex flex-wrap items-center gap-2 font-semibold break-words">
-          {source.name} {source.trust && <TrustTag trust={source.trust} />}
-        </p>
-        {source.reference && (
-          <p className="text-sm text-ink-soft">
-            <SourceReference reference={source.reference} />
+      <div className="flex min-w-0 items-start gap-3">
+        <span title={source.icon ? iconName(source.icon) : undefined}>
+          <SourceIcon icon={source.icon} className="mt-0.5 size-8" />
+        </span>
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 font-semibold break-words">
+            {source.name} {source.trust && <TrustTag trust={source.trust} />}
           </p>
-        )}
-        <p className="text-sm break-words text-ink-soft">
-          {source.exam}. {plural(source.chapters, 'chapter')}, {plural(source.questions, 'question')}
-          {source.flagged > 0 && `, ${source.flagged} flagged`}
-        </p>
-        {source.toReview > 0 && (
-          <p className="text-sm">
-            <Link to={`/review?source=${source.id}`}>{plural(source.toReview, 'question')} to review</Link>
+          {source.reference && (
+            <p className="text-sm text-ink-soft">
+              <SourceReference reference={source.reference} />
+            </p>
+          )}
+          <p className="text-sm break-words text-ink-soft">
+            {source.exam}. {plural(source.chapters, 'chapter')}, {plural(source.questions, 'question')}
+            {source.flagged > 0 && `, ${source.flagged} flagged`}
           </p>
-        )}
-        {remove.isError && (
-          <p role="alert" className="text-sm font-semibold text-wrong-ink">
-            {failureMessage(remove.error)}
-          </p>
-        )}
+          {source.toReview > 0 && (
+            <p className="text-sm">
+              <Link to={`/review?source=${source.id}`}>{plural(source.toReview, 'question')} to review</Link>
+            </p>
+          )}
+          {remove.isError && (
+            <p role="alert" className="text-sm font-semibold text-wrong-ink">
+              {failureMessage(remove.error)}
+            </p>
+          )}
+        </div>
       </div>
       {source.attempts > 0 ? (
         <p className="text-sm text-ink-soft">{plural(source.attempts, 'attempt')}, so it can't be deleted here</p>

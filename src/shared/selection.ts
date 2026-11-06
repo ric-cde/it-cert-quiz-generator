@@ -29,7 +29,7 @@ export const EXAM_STATUSES = ['active', 'passed', 'abandoned'] as const
 export type ExamStatus = (typeof EXAM_STATUSES)[number]
 export const examStatusBody = z.strictObject({ status: z.enum(EXAM_STATUSES) })
 
-export type HomeSource = { id: number; name: string; progress: ProgressCounts }
+export type HomeSource = { id: number; name: string; icon: string | null; progress: ProgressCounts }
 export type HomeExam = { id: number; name: string; status: ExamStatus; progress: ProgressCounts; sources: HomeSource[] }
 export type HomeSubject = { id: number; name: string; exams: HomeExam[] }
 export type HomeQuiz = {

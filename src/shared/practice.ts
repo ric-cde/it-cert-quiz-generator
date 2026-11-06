@@ -31,7 +31,7 @@ export type PracticeData = {
   exam: { id: number; name: string; subject: string }
   /** Top-level categories in display order, then topics, which have a parent. */
   categories: { id: number; name: string; official: boolean; parentId: number | null }[]
-  sources: { id: number; name: string }[]
+  sources: { id: number; name: string; icon: string | null }[]
   chapters: { id: number; name: string; sourceId: number }[]
   /** Every live, unflagged question in the exam. */
   questions: PracticeQuestion[]
@@ -158,7 +158,7 @@ export type TileView = {
 
 export type PracticeView = {
   categories: (TileView & { official: boolean })[]
-  sources: (TileView & { chapters: TileView[] })[]
+  sources: (TileView & { icon: string | null; chapters: TileView[] })[]
   /** The "y" in "x of y available". */
   available: number
   /** What each status would give for the tiles picked now, whichever status is on. */
@@ -200,6 +200,7 @@ export function practiceView(data: PracticeData, pool: Pool, selection: Selectio
       .map(({ unused: _, ...category }) => category),
     sources: data.sources.map((source) => ({
       ...tile(source.id, source.name, (q) => q.sourceId === source.id, byCategory),
+      icon: source.icon,
       chapters: data.chapters
         .filter((chapter) => chapter.sourceId === source.id)
         .map((chapter) => tile(chapter.id, chapter.name, (q) => q.chapterId === chapter.id, byCategory)),

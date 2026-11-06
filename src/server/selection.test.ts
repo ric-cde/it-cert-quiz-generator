@@ -115,8 +115,8 @@ describe('practiceView', () => {
       { id: 101, name: 'One topic', official: true, parentId: 1 },
     ],
     sources: [
-      { id: 1, name: 'First' },
-      { id: 2, name: 'Second' },
+      { id: 1, name: 'First', icon: 'fox' },
+      { id: 2, name: 'Second', icon: 'owl' },
     ],
     chapters: [...CHAPTER_SOURCE].map(([id, sourceId]) => ({ id, name: `Chapter ${id}`, sourceId })),
     questions: [],

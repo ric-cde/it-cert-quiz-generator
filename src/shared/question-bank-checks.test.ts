@@ -116,7 +116,7 @@ describe('questionWarnings', () => {
     ['an unclosed code block', { bodyMd: '```java\nint x;' }, /never closed/],
     ['every option labelled', { options: [{ bodyMd: 'A. Yes', isCorrect: true }, { bodyMd: 'B. No', isCorrect: false }] }, /label/],
     ['labelled with brackets', { options: [{ bodyMd: '(a) Yes', isCorrect: true }, { bodyMd: '(b) No', isCorrect: false }] }, /label/],
-    ['two identical options', { options: [{ bodyMd: 'Same', isCorrect: true }, { bodyMd: ' same ', isCorrect: false }] }, /same text/],
+    ['two identical options', { options: [{ bodyMd: 'Same', isCorrect: true }, { bodyMd: ' same ', isCorrect: false }] }, /same text, ignoring capital letters/],
     ['a letter in an explanation', { options: [{ bodyMd: 'Yes', isCorrect: true, explanationMd: 'Better than option B.' }, { bodyMd: 'No', isCorrect: false }] }, /by letter/],
     ['"Both A and B"', { lockOptionOrder: true, options: [{ bodyMd: 'Both A and B', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /by letter/],
     ['"All of the above" with no lock', { options: [{ bodyMd: 'All of the above', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /lockOptionOrder/],

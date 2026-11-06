@@ -20,12 +20,14 @@ import { ProgressBar } from '@/components/ProgressBar'
 import { QuestionCard } from '@/components/QuestionCard'
 import { Spinner } from '@/components/Spinner'
 import { ReviewNotice } from '@/components/ReviewNotice'
+import { SourceIcon, SourceIconPicker } from '@/components/SourceIcon'
 import { RandomTile, SourceTile, Tile, TileGrid } from '@/components/Tile'
 import { ExamCard } from '@/components/ExamCard'
 import { CategoryBreakdown, ReviewEntryCard } from '@/components/QuizReview'
 import { Verdict, type VerdictKind } from '@/components/Verdict'
 import type { CategoryChoice, ExamCategory, PlannedQuestion } from '../../shared/import'
 import type { InspectorRow, SortDir } from '../../shared/inspector'
+import { iconName, SOURCE_ICON_KEYS } from '../../shared/source-icons'
 
 const SECTIONS = [
   ['try-it', 'Try it'],
@@ -351,6 +353,7 @@ function InteractiveTiles() {
         <TileGrid>
           <SourceTile
             title="OCP Study Guide (Boyarsky)"
+            icon="fox"
             count={120}
             progress={{ correct: 40, incorrect: 22, total: 120 }}
             chapterCount={3}
@@ -371,6 +374,7 @@ function InteractiveTiles() {
           </SourceTile>
           <SourceTile
             title="Enthuware Practice Sets"
+            icon="owl"
             count={200}
             progress={{ correct: 12, incorrect: 8, total: 200 }}
             chapterCount={4}
@@ -794,6 +798,18 @@ function CategoryMapping() {
   )
 }
 
+function IconPickerDemo() {
+  const [icon, setIcon] = useState('fox')
+  return (
+    <div className="flex items-center gap-3">
+      <SourceIconPicker icon={icon} choices={SOURCE_ICON_KEYS.slice(0, 40)} onChange={setIcon} />
+      <p className="text-sm text-ink-soft">Chosen: {iconName(icon)}</p>
+      <SourceIconPicker icon="owl" choices={['owl']} onChange={() => {}} disabled />
+      <p className="text-sm text-ink-soft">Disabled while saving</p>
+    </div>
+  )
+}
+
 function Importing() {
   const [chosen, setChosen] = useState<string>()
   return (
@@ -818,6 +834,21 @@ function Importing() {
       <Specimen label="Categories in a file: the exam's own, and names to choose a place for" className="mt-6">
         <div className="max-w-2xl">
           <CategoryMapping />
+        </div>
+      </Specimen>
+      <Specimen label="Source icon picker: click it to choose another. Only icons nobody else has are offered." className="mt-6">
+        <IconPickerDemo />
+      </Specimen>
+      <Specimen label="The whole icon set, in the order they're suggested, and the paw print shown when a source has none" className="mt-6">
+        <div className="flex flex-wrap gap-2">
+          {SOURCE_ICON_KEYS.map((key) => (
+            <span key={key} title={iconName(key)}>
+              <SourceIcon icon={key} className="size-10" />
+            </span>
+          ))}
+          <span title="No icon">
+            <SourceIcon icon={null} className="size-10" />
+          </span>
         </div>
       </Specimen>
       <Specimen label="How far a source can be trusted" className="mt-6">
@@ -1085,8 +1116,8 @@ function HomeParts() {
             status: 'active',
             progress: progress(140, 60, 320),
             sources: [
-              { id: 1, name: 'OCP Study Guide (Boyarsky)', progress: progress(90, 30, 120) },
-              { id: 2, name: 'Enthuware Practice Sets', progress: progress(50, 30, 200) },
+              { id: 1, name: 'OCP Study Guide (Boyarsky)', icon: 'fox', progress: progress(90, 30, 120) },
+              { id: 2, name: 'Enthuware Practice Sets', icon: 'owl', progress: progress(50, 30, 200) },
             ],
           }}
           onStatus={() => {}}
@@ -1105,7 +1136,7 @@ function HomeParts() {
             name: 'OutSystems Associate Developer (O11)',
             status: 'passed',
             progress: progress(170, 10, 200),
-            sources: [{ id: 3, name: 'Official practice exam', progress: progress(170, 10, 200) }],
+            sources: [{ id: 3, name: 'Official practice exam', icon: 'penguin', progress: progress(170, 10, 200) }],
           }}
           onStatus={() => {}}
         />

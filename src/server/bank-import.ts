@@ -27,6 +27,7 @@ import {
 } from '../shared/question-bank-checks'
 import type { Db, Tx } from './db'
 import { countToReview } from './review'
+import { iconOptions } from './source-icons'
 import { remarkQuestion } from './tracking'
 import {
   attempts,
@@ -239,6 +240,7 @@ function plan(db: Reader, raw: unknown, choices: Record<string, CategoryChoice> 
     .from(sources)
     .where(and(eq(sources.examId, exam.id), eq(sources.name, bank.source.name)))
     .get()
+  const icons = iconOptions(db, source?.id)
   const chapterRows = source ? db.select().from(chapters).where(eq(chapters.sourceId, source.id)).all() : []
   const chapterIds = new Map(chapterRows.map((chapter) => [chapter.name, chapter.id]))
   const chapterNames = new Map(chapterRows.map((chapter) => [chapter.id, chapter.name]))
@@ -352,6 +354,8 @@ function plan(db: Reader, raw: unknown, choices: Record<string, CategoryChoice> 
         trust: bank.source.trust ?? source?.trust ?? defaultTrust(bank),
         reference: bank.source.reference ?? source?.reference ?? null,
         exists: Boolean(source),
+        icon: icons.icon,
+        iconChoices: icons.choices,
       },
       categories: categoryPlan.planned,
       examCategories: categoryPlan.list,
@@ -407,7 +411,7 @@ function saveOptions(tx: Tx, questionId: number, incoming: BankQuestion, existin
 export function commitImport(
   db: Db,
   raw: unknown,
-  { includeDuplicates = false, limit, categoryChoices = {} }: ImportOptions = {},
+  { includeDuplicates = false, limit, categoryChoices = {}, icon }: ImportOptions = {},
 ): ImportResult | ImportRejected {
   return db.transaction((tx) => {
     const result = plan(tx, raw, categoryChoices)
@@ -416,6 +420,8 @@ export function commitImport(
 
     // The file wins for these too, but leaving them out keeps what's there.
     const sourceDetails = {
+      // A new source takes the suggested icon, and an existing one keeps its own, unless one was chosen.
+      icon: icon ?? preview.source.icon,
       ...(bank.source.trust || !result.sourceId ? { trust: preview.source.trust } : {}),
       ...(bank.source.reference ? { reference: bank.source.reference } : {}),
     }
@@ -557,6 +563,7 @@ export function listSources(db: Db): SourceSummary[] {
       origin: sources.origin,
       trust: sources.trust,
       reference: sources.reference,
+      icon: sources.icon,
     })
     .from(sources)
     .innerJoin(exams, eq(sources.examId, exams.id))

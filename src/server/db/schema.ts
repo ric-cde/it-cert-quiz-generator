@@ -141,6 +141,8 @@ export const sources = sqliteTable(
     trust: text('trust', { enum: SOURCE_TRUST }),
     // A link or citation: a URL, a book and edition, or where and when it was found.
     reference: text('reference'),
+    // An animal's key from `SOURCE_ICON_KEYS`. Blank, or a key since retired, is filled in on start.
+    icon: text('icon'),
   },
   (t) => [
     uniqueIndex('sources_exam_name_unique').on(t.examId, t.name),

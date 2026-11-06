@@ -39,7 +39,7 @@ const data: PracticeData = {
     { id: 3, name: 'Empty', official: true, parentId: null },
     { id: 2, name: 'Odd ones', official: false, parentId: null },
   ],
-  sources: [{ id: 7, name: 'Alpha' }],
+  sources: [{ id: 7, name: 'Alpha', icon: 'fox' }],
   chapters: [
     { id: 70, name: 'Alpha one', sourceId: 7 },
     { id: 71, name: 'Alpha two', sourceId: 7 },

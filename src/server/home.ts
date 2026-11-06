@@ -10,7 +10,7 @@ import { loadPool } from './selection'
 export function homeOverview(db: Db, userId: number): HomeOverview {
   const subjectRows = db.select().from(subjects).orderBy(asc(subjects.id)).all()
   const examRows = db.select().from(exams).orderBy(asc(exams.id)).all()
-  const sourceRows = db.select({ id: sources.id, examId: sources.examId, name: sources.name }).from(sources).orderBy(asc(sources.name)).all()
+  const sourceRows = db.select({ id: sources.id, examId: sources.examId, name: sources.name, icon: sources.icon }).from(sources).orderBy(asc(sources.name)).all()
 
   const unfinished = db
     .select({ quiz: quizzes, exam: exams.name })
@@ -42,6 +42,7 @@ export function homeOverview(db: Db, userId: number): HomeOverview {
         .map((source) => ({
           id: source.id,
           name: source.name,
+          icon: source.icon,
           progress: progressOf(pool.filter((question) => question.sourceId === source.id)),
         })),
     }

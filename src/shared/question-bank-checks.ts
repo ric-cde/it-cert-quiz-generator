@@ -73,6 +73,9 @@ export function questionFingerprint(question: Question) {
   return JSON.stringify([normaliseText(question.bodyMd), options])
 }
 
+/** Shared with the import screen, which explains this one. The check ignores capitals, but Java options such as `Long` and `long` differ by them. */
+export const SAME_TEXT_WARNING = 'Two options have the same text, ignoring capital letters.'
+
 const NUMBER_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6 }
 
 function fenceProblems(markdown: string) {
@@ -146,7 +149,7 @@ export function questionWarnings(question: Question): string[] {
     warnings.push('Every option seems to start with a label such as "A.", which should be left out.')
   }
   if (new Set(options.map((option) => normaliseText(option.bodyMd))).size < options.length) {
-    warnings.push('Two options have the same text.')
+    warnings.push(SAME_TEXT_WARNING)
   }
 
   const optionProse = options.map((option) => proseOf(option.bodyMd)).join('\n')

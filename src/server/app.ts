@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Health } from '../shared/health'
 import { answerBody, createQuizBody, flagBody, nextBody, revealBody } from '../shared/quiz'
 import { reviewDecisionSchema } from '../shared/review'
+import { isIconKey } from '../shared/source-icons'
 import { examStatusBody } from '../shared/selection'
 import { type AuthEnv, requireRole, resolveUser } from './auth'
 import { commitImport, deleteSource, listSources, previewImport } from './bank-import'
@@ -40,6 +41,7 @@ const importCommitBody = z.strictObject({
   includeDuplicates: z.boolean().optional(),
   limit: z.number().int().positive().optional(),
   categoryChoices: z.record(z.string(), categoryChoice).optional(),
+  icon: z.string().refine(isIconKey, 'Not one of the source icons').optional(),
 })
 const idParam = z.object({ id: z.string().regex(/^[1-9]\d*$/).transform(Number) })
 

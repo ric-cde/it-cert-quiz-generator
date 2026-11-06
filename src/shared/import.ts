@@ -64,6 +64,10 @@ export type ImportPlan = {
     trust: SourceTrust | null
     reference: string | null
     exists: boolean
+    /** Its icon, or the one suggested for a new source. */
+    icon: string
+    /** The icons it can have instead, in order: the ones fewest sources hold. */
+    iconChoices: string[]
   }
   /** Every category name the file uses, in order of first use. */
   categories: PlannedCategory[]
@@ -87,6 +91,8 @@ export type ImportOptions = {
   limit?: number
   /** Where new or remembered category names go. Any left out take their `defaultChoice`. */
   categoryChoices?: Record<string, CategoryChoice>
+  /** The source's icon. Left out, a new source takes the suggested one and an existing source keeps its own. */
+  icon?: string
 }
 
 export type ImportResult = {
@@ -111,6 +117,7 @@ export type SourceSummary = {
   origin: string
   trust: SourceTrust | null
   reference: string | null
+  icon: string | null
   chapters: number
   questions: number
   flagged: number

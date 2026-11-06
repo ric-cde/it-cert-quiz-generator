@@ -279,6 +279,7 @@ export function TakeExamPage() {
                       <SourceTile
                         key={source.id}
                         title={source.name}
+                        icon={source.icon}
                         count={source.count}
                         empty={source.empty}
                         progress={source.progress}

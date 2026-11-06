@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { ExamStatus, HomeExam } from '../../shared/selection'
 import { buttonClass } from './Button'
 import { ProgressBar } from './ProgressBar'
+import { SourceIcon } from './SourceIcon'
 
 const ACTIONS: Record<ExamStatus, { label: string; status: ExamStatus }[]> = {
   active: [
@@ -112,9 +113,10 @@ export function ExamCard({ exam, onStatus }: { exam: HomeExam; onStatus?: (statu
                   <Link
                     to={`/exam/${exam.id}?sources=${source.id}`}
                     title="Practise this source"
-                    className="min-w-0 text-sm break-words text-ink after:absolute after:inset-0 after:rounded-md after:content-[''] hover:text-ink"
+                    className="flex min-w-0 items-center gap-2 text-sm break-words text-ink after:absolute after:inset-0 after:rounded-md after:content-[''] hover:text-ink"
                   >
-                    {source.name}
+                    <SourceIcon icon={source.icon} className="size-5" />
+                    <span className="min-w-0">{source.name}</span>
                   </Link>
                   <div className="relative z-10">
                     <ProgressBar {...source.progress} label={`${source.name} progress`} />
