@@ -5,39 +5,56 @@ import { Button } from './Button'
 import { inputClass } from './Field'
 
 /**
- * One press flags the question straight away, so a broken question costs no effort. The reason is
- * optional, and worth having when you come back to the flagged list later.
+ * One press flags the question straight away, so a broken question costs no effort. It sits on the
+ * card's action row, and the same button unflags. The word hides on a phone, leaving the icon.
  */
-export function FlagControl({
+export function FlagButton({
   flagged,
-  reason,
   busy = false,
   onFlag,
   onUnflag,
-  onSaveReason,
 }: {
   flagged: boolean
-  reason: string | null
   busy?: boolean
   onFlag: () => void
   onUnflag: () => void
+}) {
+  const label = flagged ? 'Unflag' : 'Flag'
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      aria-label={label}
+      title={flagged ? 'Unflag this question' : 'Flag this question, to leave it out of future quizzes'}
+      disabled={busy}
+      onClick={flagged ? onUnflag : onFlag}
+    >
+      <Flag className={clsx('size-4', flagged && 'fill-current text-amber-ink')} aria-hidden="true" />
+      <span className="max-sm:sr-only">{label}</span>
+    </Button>
+  )
+}
+
+/**
+ * Opens below the action row once a question is flagged. The reason is optional, and worth having
+ * when you come back to the flagged list later.
+ */
+export function FlagReason({
+  reason,
+  busy = false,
+  onSaveReason,
+}: {
+  reason: string | null
+  busy?: boolean
   onSaveReason: (reason: string) => void
 }) {
   const inputId = useId()
   const [draft, setDraft] = useState(reason ?? '')
-
-  if (!flagged) {
-    return (
-      <Button size="sm" variant="ghost" disabled={busy} onClick={onFlag}>
-        <Flag className="size-4" aria-hidden="true" /> Flag
-      </Button>
-    )
-  }
-
   const unchanged = draft.trim() === (reason ?? '')
+
   return (
     <form
-      className="w-full"
+      className="w-full animate-rise rounded-md border border-amber/60 bg-amber-soft px-3.5 py-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (!unchanged) onSaveReason(draft.trim())
@@ -60,9 +77,6 @@ export function FlagControl({
         />
         <Button type="submit" size="sm" disabled={busy || unchanged}>
           Save reason
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={onUnflag}>
-          Unflag
         </Button>
       </div>
     </form>

@@ -1,8 +1,9 @@
 import clsx from 'clsx'
 import { RadioGroup, Switch as RadixSwitch } from 'radix-ui'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { useId } from 'react'
 import { Button } from './Button'
+import { Kbd } from './Kbd'
 import { inputClass } from './Field'
 import { Spinner } from './Spinner'
 
@@ -16,11 +17,13 @@ export function FilterPanel({ children, footer }: { children: ReactNode; footer?
   )
 }
 
-/** One filter, with its label above it. */
-export function FilterField({ label, children }: { label: string; children: ReactNode }) {
+/** One filter, with its label above it, and the key that changes it if there is one. */
+export function FilterField({ label, shortcut, children }: { label: string; shortcut?: string; children: ReactNode }) {
   return (
     <div className="max-w-full min-w-0">
-      <p className="mb-1 text-sm font-semibold">{label}</p>
+      <p className="mb-1 flex items-center gap-2 text-sm font-semibold">
+        {label} {shortcut && <Kbd>{shortcut}</Kbd>}
+      </p>
       {children}
     </div>
   )
@@ -101,7 +104,15 @@ export function Switch({
 
 export type MaxQuestions = number | 'max'
 
-const PRESETS = [20, 50, 100] as const
+export const PRESETS = [20, 50, 100] as const
+
+/** What M moves to next: through the presets and Max, then the number field, shown as null. */
+export function nextMaxQuestions(value: MaxQuestions): MaxQuestions | null {
+  if (value === 'max') return null
+  const index = (PRESETS as readonly number[]).indexOf(value)
+  if (index === -1) return PRESETS[0]
+  return PRESETS[index + 1] ?? 'max'
+}
 
 /** Reads the number field. Anything that isn't a whole number above zero means "no value yet". */
 export function parseMaxQuestions(text: string): number | null {
@@ -114,9 +125,12 @@ export function parseMaxQuestions(text: string): number | null {
 export function MaxQuestionsPicker({
   value,
   onChange,
+  inputRef,
 }: {
   value: MaxQuestions
   onChange?: (value: MaxQuestions) => void
+  /** For the shortcut that moves on from Max to the number field. */
+  inputRef?: Ref<HTMLInputElement>
 }) {
   const isPreset = value === 'max' || (PRESETS as readonly number[]).includes(value)
 
@@ -133,15 +147,35 @@ export function MaxQuestionsPicker({
         inputMode="numeric"
         min={1}
         step={1}
+        ref={inputRef}
         aria-label="Custom number of questions"
-        placeholder="Other"
         value={isPreset ? '' : value}
         onChange={(event) => {
           const parsed = parseMaxQuestions(event.target.value)
           if (parsed !== null) onChange?.(parsed)
         }}
-        className={clsx(inputClass(), 'w-24')}
+        // Three digits is plenty. Left blank: a placeholder standing in for a label is a known
+        // usability problem, and the field's label is there for screen readers.
+        className={clsx(inputClass(), 'w-[4.25rem]')}
       />
+    </div>
+  )
+}
+
+/** Beyond this many, the strip would be a wall, so it stops adding rectangles. */
+export const MAX_STRIP = 500
+
+/**
+ * One rectangle for each question the quiz will ask. Few questions stretch to fill the width, and
+ * many keep a minimum width and wrap onto more lines.
+ */
+export function SelectionStrip({ count }: { count: number }) {
+  const shown = Math.min(Math.max(count, 0), MAX_STRIP)
+  return (
+    <div aria-hidden="true" className="grid grid-cols-[repeat(auto-fit,minmax(6px,1fr))] gap-[3px]">
+      {Array.from({ length: shown }, (_, index) => (
+        <span key={index} data-question className="h-2 rounded-[2px] bg-accent" />
+      ))}
     </div>
   )
 }
@@ -152,15 +186,37 @@ export function LiveCount({
   available,
   loading = false,
   onStart,
+  bar = false,
+  shortcut,
 }: {
   selected: number
   available: number
   loading?: boolean
   onStart?: () => void
+  /**
+   * Square-edged and tinted, for the bar along the bottom of the take-exam screen, with a strip of
+   * the questions chosen. The parent stretches it to the full width of the window.
+   */
+  bar?: boolean
+  /** The key that starts the quiz, shown on the button. */
+  shortcut?: string
 }) {
   const none = available === 0
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-raised">
+    <div
+      className={
+        bar
+          ? 'border-t border-accent/30 bg-accent-soft shadow-[0_-4px_16px_-8px_oklch(0.25_0.025_265/0.25)]'
+          : 'rounded-lg border border-line bg-surface shadow-raised'
+      }
+    >
+      <div
+        className={
+          bar
+            ? 'mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-5 gap-y-2.5 px-4 py-3'
+            : 'flex flex-wrap items-center justify-between gap-3 px-4 py-3'
+        }
+      >
       <p aria-live="polite" aria-busy={loading} className="flex items-baseline gap-1.5 text-ink-soft">
         {none ? (
           <span className="font-semibold">No questions match</span>
@@ -172,9 +228,15 @@ export function LiveCount({
           </>
         )}
       </p>
-      <Button variant="primary" disabled={none || loading} onClick={onStart}>
-        Start quiz
+      {bar && !none && (
+        <div className="order-last basis-full sm:order-none sm:min-w-0 sm:flex-1 sm:basis-0">
+          <SelectionStrip count={selected} />
+        </div>
+      )}
+      <Button variant="primary" disabled={none || loading} onClick={onStart} className={clsx(bar && 'sm:px-8')}>
+        Start quiz {shortcut && !none && <Kbd tone="on-accent">{shortcut}</Kbd>}
       </Button>
+      </div>
     </div>
   )
 }

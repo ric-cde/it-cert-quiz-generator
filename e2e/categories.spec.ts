@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { startSource } from './helpers'
 
 const EXAM = 'OutSystems Associate Developer (O11)'
 
@@ -39,7 +40,7 @@ test('a category the exam lacks is mapped on import, and the choice is remembere
   await preview(page, bank('Mapping source', 'Widgets and screens', 'Mapping'))
 
   await expect(page.getByText('New to this exam')).toBeVisible()
-  await expect(page.getByText('Official', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Preview' }).getByText('Official', { exact: true })).toBeVisible()
   const choice = page.getByRole('combobox', { name: /"Widgets and screens"/ })
   await expect(choice).toHaveValue('keep')
   await choice.selectOption({ label: 'UI Design › Screen Widgets' })
@@ -57,8 +58,7 @@ test('a question shows its own explanation after answering, with its topic', asy
   const res = await page.request.post('/api/import/commit', { data: { bank: bank('Explained source', 'Aggregates', 'Explained') } })
   expect(res.ok()).toBe(true)
 
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Start Explained source, feedback after each question' }).click()
+  await startSource(page, 'Explained source', 'After each question')
   await page.getByText('Explained wrong').click()
   await page.getByRole('button', { name: /^Submit/ }).click()
 

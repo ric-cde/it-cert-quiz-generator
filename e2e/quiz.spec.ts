@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, test } from '@playwright/test'
-
-const EXAM = 'OutSystems Associate Developer (O11)'
+import { EXAM, sourceTile, startSource } from './helpers'
 
 /** Each test imports its own source, with its own wording, because they share one database. */
 function bank(name: string) {
@@ -49,9 +48,7 @@ async function importBank(page: Page, name: string) {
 }
 
 async function start(page: Page, name: string, feedback: 'after each question' | 'at the end') {
-  await page.goto('/')
-  await page.getByRole('button', { name: `Start ${name}, feedback ${feedback}` }).click()
-  await expect(page).toHaveURL(/\/quiz\/\d+$/)
+  await startSource(page, name, feedback === 'at the end' ? 'At the end' : 'After each question')
   await expect(page.getByText(/Question 1 of 2/)).toBeVisible()
 }
 
@@ -90,8 +87,7 @@ test('feedback after each question: answers, marks, saves and finishes, by keybo
   await expect(page.getByRole('heading', { name: 'Quiz finished' })).toBeVisible()
   await expect(page.getByText(/1 of 2 correct/)).toBeVisible()
 
-  await page.getByRole('link', { name: 'question stats' }).click()
-  await expect(page.getByRole('region', { name: 'question_stats' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry missed (1)' })).toBeVisible()
 })
 
 test('feedback at the end: shows nothing, skips with nothing selected, and scores afterwards', async ({ page }) => {
@@ -146,12 +142,12 @@ test('a flagged question can be left, and stays out of the next quiz', async ({ 
   await page.getByRole('button', { name: 'Save reason' }).click()
   await expect(page.getByRole('button', { name: 'Save reason' })).toBeDisabled()
 
-  await page.getByRole('button', { name: 'Move on without answering' }).click()
+  await page.getByRole('button', { name: 'Skip', exact: true }).click()
   await expect(page.getByText(/Question 2 of 2/)).toBeVisible()
 
   await page.goto('/')
-  const row = page.getByRole('listitem').filter({ hasText: name }).filter({ hasText: 'available' })
-  await expect(row).toContainText('1 available')
+  await page.getByRole('link', { name: `Practise ${EXAM}` }).click()
+  await expect(sourceTile(page, name)).toContainText(/1 question\b/)
 })
 
 test('ending early keeps what was answered', async ({ page }) => {

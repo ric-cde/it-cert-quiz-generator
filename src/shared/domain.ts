@@ -12,6 +12,9 @@ export const EXPLANATION_ORIGINS = ['source', 'generated'] as const
 export const QUIZ_MODES = ['study', 'mock'] as const
 export const FEEDBACK_MODES = ['after_each', 'at_end'] as const
 export type Feedback = (typeof FEEDBACK_MODES)[number]
+/** The take-exam Sort option. Easiest and hardest first arrive with Stage 7, and the final set is to be decided. */
+export const QUIZ_SORTS = ['random', 'source'] as const
+export type QuizSort = (typeof QUIZ_SORTS)[number]
 export const ATTEMPT_RESULTS = ['correct', 'partial', 'incorrect', 'pending'] as const
 export const ATTEMPT_KINDS = ['answered', 'revealed'] as const
 export const DRAFT_KINDS = ['import', 'generate'] as const
@@ -28,10 +31,24 @@ export type PriorityWeights = {
   sourceRating: number
 }
 
-/** How a quiz was set up. Stage 6 adds the take-exam options. */
+/** How a quiz was set up. */
 export type QuizConfig = {
   feedback: Feedback
-  sourceId: number
+  /** Set by quizzes from before the current naming rules. Names are now worked out when shown. */
+  label?: string
+  /** The take-exam tiles and status filter it was made from. */
+  selection?: {
+    categoryIds: number[]
+    sourceIds: number[]
+    chapterIds: number[]
+    status: 'all' | 'unanswered' | 'incorrect' | 'unsolved'
+  }
+  limit?: number
+  sort?: QuizSort
+  /** Retry missed: the quiz whose misses this one asks again. */
+  retryOf?: number
+  /** Stage 5 quizzes were started from one source. */
+  sourceId?: number
 }
 
 export type QuizDefaults = {

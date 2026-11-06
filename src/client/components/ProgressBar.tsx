@@ -1,5 +1,28 @@
 import clsx from 'clsx'
 
+/**
+ * Which part of a bar the status filter picks. That part stands taller than the rest, with a thin
+ * white outline and a second in its own colour. Unsolved picks the yellow part as a whole, though a
+ * question right once and wrong since is in it. All picks nothing.
+ */
+export type ProgressEmphasis = 'all' | 'unanswered' | 'incorrect' | 'unsolved'
+type Segment = 'correct' | 'incorrect' | 'unanswered'
+
+const picked: Record<ProgressEmphasis, Segment | null> = {
+  all: null,
+  unanswered: 'unanswered',
+  incorrect: 'incorrect',
+  unsolved: 'incorrect',
+}
+
+const SEGMENT = 'transition-[width,height,box-shadow] duration-500 ease-out-soft first:rounded-l-full last:rounded-r-full'
+const STANDS_OUT: Record<Segment, string> = {
+  correct: 'relative z-10 h-3.5 rounded-[3px]! shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-correct)]',
+  incorrect: 'relative z-10 h-3.5 rounded-[3px]! shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-amber)]',
+  unanswered:
+    'relative z-10 h-3.5 rounded-[3px]! bg-line shadow-[0_0_0_1.5px_var(--color-surface),0_0_0_3px_var(--color-line-strong)]',
+}
+
 export type ProgressCounts = {
   /** Questions whose latest attempt was correct. */
   correct: number
@@ -30,7 +53,9 @@ export function ProgressBar({
   label,
   showPercent = true,
   muted = false,
+  emphasis = 'all',
 }: ProgressCounts & {
+  emphasis?: ProgressEmphasis
   /** What this bar measures, for screen readers. */
   label: string
   showPercent?: boolean
@@ -38,6 +63,10 @@ export function ProgressBar({
   muted?: boolean
 }) {
   const { correctPct, incorrectPct, percentComplete } = progressSegments({ correct, incorrect, total })
+  const right = Math.min(Math.max(correct, 0), Math.max(total, 0))
+  const wrong = Math.min(Math.max(incorrect, 0), Math.max(total - right, 0))
+  const unanswered = Math.max(total - right - wrong, 0)
+  const standsOut = picked[emphasis]
 
   return (
     <div className="flex items-center gap-2.5">
@@ -47,23 +76,45 @@ export function ProgressBar({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percentComplete}
-        className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-sunken"
+        // Not clipped, so the picked part can stand out above and below the bar.
+        className="h-2 min-w-0 flex-1 rounded-full bg-sunken"
       >
-        <div className={clsx('flex h-full animate-fill', muted && 'grayscale')}>
-          <div
-            data-segment="correct"
-            className="h-full bg-correct transition-[width] duration-500 ease-out-soft"
-            style={{ width: `${correctPct}%` }}
-          />
-          <div
-            data-segment="incorrect"
-            className="h-full bg-amber transition-[width] duration-500 ease-out-soft"
-            style={{ width: `${incorrectPct}%` }}
-          />
+        {/* Hovering any part says how many questions it stands for. */}
+        {/* The fill animation clips the bar while it runs. Not keeping that clip afterwards lets the picked part stand out. */}
+        <div className={clsx('flex h-full animate-fill items-center [animation-fill-mode:backwards]', muted && 'opacity-50 grayscale')}>
+          {right > 0 && (
+            <div
+              data-segment="correct"
+              data-picked={standsOut === 'correct' || undefined}
+              title={`${right} correct`}
+              className={clsx(SEGMENT, 'bg-correct', standsOut === 'correct' ? STANDS_OUT.correct : 'h-full')}
+              style={{ width: `${correctPct}%` }}
+            />
+          )}
+          {wrong > 0 && (
+            <div
+              data-segment="incorrect"
+              data-picked={standsOut === 'incorrect' || undefined}
+              title={`${wrong} incorrect`}
+              className={clsx(SEGMENT, 'bg-amber', standsOut === 'incorrect' ? STANDS_OUT.incorrect : 'h-full')}
+              style={{ width: `${incorrectPct}%` }}
+            />
+          )}
+          {unanswered > 0 && (
+            <div
+              data-segment="unanswered"
+              data-picked={standsOut === 'unanswered' || undefined}
+              title={`${unanswered} unanswered`}
+              className={clsx(SEGMENT, 'flex-1', standsOut === 'unanswered' ? STANDS_OUT.unanswered : 'h-full')}
+            />
+          )}
         </div>
       </div>
       {showPercent && (
-        <span className="w-9 flex-none text-right text-xs tabular-nums text-ink-soft">{percentComplete}%</span>
+        // The bar itself tells screen readers the figure, so this would only repeat it.
+        <span aria-hidden="true" className="w-9 flex-none text-right text-xs tabular-nums text-ink-soft">
+          {percentComplete}%
+        </span>
       )}
     </div>
   )

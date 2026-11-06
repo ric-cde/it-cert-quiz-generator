@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Health } from '../shared/health'
 import { answerBody, createQuizBody, flagBody, nextBody, revealBody } from '../shared/quiz'
 import { reviewDecisionSchema } from '../shared/review'
+import { examStatusBody } from '../shared/selection'
 import { type AuthEnv, requireRole, resolveUser } from './auth'
 import { commitImport, deleteSource, listSources, previewImport } from './bank-import'
 import type { Db } from './db'
@@ -15,12 +16,15 @@ import {
   finishQuiz,
   flagQuestion,
   getQuizState,
-  listStartOptions,
   nextQuestion,
+  retryMissed,
   revealAnswer,
+  reviewQuiz,
   unflagQuestion,
 } from './quiz'
+import { homeOverview, setExamStatus } from './home'
 import { listToReview, resolveReview } from './review'
+import { practiceData } from './selection'
 import { getSettings, updateSettings } from './settings'
 
 const settingsChanges = z.strictObject({ syntaxHighlighting: z.boolean() })
@@ -102,7 +106,16 @@ export function createApi(db: Db) {
         return c.json({ ok: true })
       },
     )
-    .get('/api/quizzes/start-options', (c) => c.json(listStartOptions(db, c.get('user').id)))
+    .get('/api/home', (c) => c.json(homeOverview(db, c.get('user').id)))
+    .put('/api/exams/:id/status', zValidator('param', idParam), zValidator('json', examStatusBody), (c) =>
+      setExamStatus(db, c.get('user').id, c.req.valid('param').id, c.req.valid('json').status)
+        ? c.json({ ok: true })
+        : c.json({ error: 'No such exam' }, 404),
+    )
+    .get('/api/exams/:id/practice', zValidator('param', idParam), (c) => {
+      const data = practiceData(db, c.get('user').id, c.req.valid('param').id)
+      return data ? c.json(data) : c.json({ error: 'No such exam' }, 404)
+    })
     .post('/api/quizzes', zValidator('json', createQuizBody), (c) => {
       const created = createQuiz(db, c.get('user').id, c.req.valid('json'))
       return created.ok ? c.json({ id: created.id }, 201) : c.json({ error: created.error }, QUIZ_FAILURE_STATUS[created.error])
@@ -122,6 +135,16 @@ export function createApi(db: Db) {
     .post('/api/quizzes/:id/next', zValidator('param', idParam), zValidator('json', nextBody), (c) => {
       const outcome = nextQuestion(db, c.get('user').id, c.req.valid('param').id, c.req.valid('json').questionId)
       return outcome.ok ? c.json(outcome.state) : c.json({ error: outcome.error }, QUIZ_FAILURE_STATUS[outcome.error])
+    })
+    .get('/api/quizzes/:id/review', zValidator('param', idParam), (c) => {
+      const entries = reviewQuiz(db, c.get('user').id, c.req.valid('param').id)
+      return typeof entries === 'string'
+        ? c.json({ error: entries }, QUIZ_FAILURE_STATUS[entries])
+        : c.json(entries)
+    })
+    .post('/api/quizzes/:id/retry', zValidator('param', idParam), (c) => {
+      const created = retryMissed(db, c.get('user').id, c.req.valid('param').id)
+      return created.ok ? c.json({ id: created.id }, 201) : c.json({ error: created.error }, QUIZ_FAILURE_STATUS[created.error])
     })
     .post('/api/quizzes/:id/finish', zValidator('param', idParam), (c) => {
       const outcome = finishQuiz(db, c.get('user').id, c.req.valid('param').id)

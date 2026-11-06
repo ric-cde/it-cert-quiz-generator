@@ -1,22 +1,12 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/lib/api'
+import { describe, expect, it, vi } from 'vitest'
 import type { QuizResults } from '../../shared/quiz'
-import { FlagControl } from './FlagControl'
-import { PracticeStart } from './PracticeStart'
-import { QuizProgress } from './QuizProgress'
+import { FlagButton, FlagReason } from './FlagControl'
+import { QuizActions } from './QuizActions'
+import { MAX_SEGMENTS, QuizProgress } from './QuizProgress'
 import { QuizScore, quizScore } from './QuizScore'
 
-vi.mock('@/lib/api', () => ({
-  api: { api: { quizzes: { 'start-options': { $get: vi.fn() }, $post: vi.fn() } } },
-}))
-
-const getOptions = vi.mocked(api.api.quizzes['start-options'].$get)
-const postQuiz = vi.mocked(api.api.quizzes.$post)
-const json = (value: unknown, status = 200) => Response.json(value, { status }) as never
 
 const results = (overrides: Partial<QuizResults> = {}): QuizResults => ({
   correct: 0,
@@ -61,21 +51,49 @@ describe('QuizProgress', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '3')
     expect(bar).toHaveAttribute('aria-valuemax', '12')
   })
+
+  it('has one segment per question: done, current, then to do', () => {
+    const { container } = render(<QuizProgress position={2} total={5} current={2} />)
+    const states = [...container.querySelectorAll('[data-segment]')].map((segment) => segment.getAttribute('data-segment'))
+    expect(states).toEqual(['done', 'done', 'current', 'todo', 'todo'])
+  })
+
+  it('marks no current segment once the question on screen is done', () => {
+    const { container } = render(<QuizProgress position={3} total={5} current={2} />)
+    expect(container.querySelectorAll('[data-segment="current"]')).toHaveLength(0)
+    expect(container.querySelectorAll('[data-segment="done"]')).toHaveLength(3)
+  })
+
+  it('becomes one line when there would be too many segments', () => {
+    const { container } = render(<QuizProgress position={10} total={MAX_SEGMENTS + 1} />)
+    expect(container.querySelectorAll('[data-segment]')).toHaveLength(0)
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '10')
+  })
 })
 
-describe('FlagControl', () => {
-  const handlers = () => ({ onFlag: vi.fn(), onUnflag: vi.fn(), onSaveReason: vi.fn() })
+describe('FlagButton', () => {
+  const handlers = () => ({ onFlag: vi.fn(), onUnflag: vi.fn() })
 
   it('flags with one press', async () => {
     const on = handlers()
-    render(<FlagControl flagged={false} reason={null} {...on} />)
+    render(<FlagButton flagged={false} {...on} />)
     await userEvent.click(screen.getByRole('button', { name: 'Flag' }))
     expect(on.onFlag).toHaveBeenCalledOnce()
   })
 
-  it('saves a changed reason only', async () => {
+  it('unflags with the same button', async () => {
     const on = handlers()
-    render(<FlagControl flagged reason="Old" {...on} />)
+    render(<FlagButton flagged {...on} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Unflag' }))
+    expect(on.onUnflag).toHaveBeenCalledOnce()
+    expect(on.onFlag).not.toHaveBeenCalled()
+  })
+})
+
+describe('FlagReason', () => {
+  it('saves a changed reason only', async () => {
+    const on = { onSaveReason: vi.fn() }
+    render(<FlagReason reason="Old" {...on} />)
     const user = userEvent.setup()
 
     expect(screen.getByLabelText(/What's wrong with it/)).toHaveValue('Old')
@@ -85,80 +103,17 @@ describe('FlagControl', () => {
     await user.click(screen.getByRole('button', { name: 'Save reason' }))
     expect(on.onSaveReason).toHaveBeenCalledWith('Old news')
   })
-
-  it('unflags', async () => {
-    const on = handlers()
-    render(<FlagControl flagged reason={null} {...on} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Unflag' }))
-    expect(on.onUnflag).toHaveBeenCalledOnce()
-  })
 })
 
-describe('PracticeStart', () => {
-  const source = { id: 3, exam: 'An exam', name: 'Set 1', available: 40 }
-
-  function renderIt() {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <Routes>
-            <Route path="/" element={<PracticeStart />} />
-            <Route path="/quiz/:id" element={<p>The quiz</p>} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    postQuiz.mockImplementation(async () => json({ id: 9 }, 201))
+describe('QuizActions', () => {
+  it('keeps a hidden place for Next that no one can reach', () => {
+    render(<QuizActions tools={<button type="button">Flag</button>}>Left</QuizActions>)
+    expect(screen.queryByRole('button', { name: /Next/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Flag' })).toBeInTheDocument()
   })
 
-  it('points to the import screen when there is nothing to practise', async () => {
-    getOptions.mockImplementation(async () => json({ sources: [{ ...source, available: 0 }], unfinished: [] }))
-    renderIt()
-    expect(await screen.findByRole('link', { name: 'Import some questions' })).toHaveAttribute('href', '/import')
-    expect(screen.queryByText('Set 1')).not.toBeInTheDocument()
-  })
-
-  it('starts a capped quiz and opens it', async () => {
-    getOptions.mockImplementation(async () => json({ sources: [source], unfinished: [] }))
-    renderIt()
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Start Set 1, feedback at the end' }))
-
-    expect(await screen.findByText('The quiz')).toBeInTheDocument()
-    expect(postQuiz).toHaveBeenCalledWith({ json: { sourceId: 3, feedback: 'at_end', limit: 20 } })
-  })
-
-  it('sends no cap for All', async () => {
-    getOptions.mockImplementation(async () => json({ sources: [source], unfinished: [] }))
-    renderIt()
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('radio', { name: 'All' }))
-    await user.click(screen.getByRole('button', { name: 'Start Set 1, feedback after each question' }))
-
-    expect(postQuiz).toHaveBeenCalledWith({ json: { sourceId: 3, feedback: 'after_each' } })
-  })
-
-  it('links to an unfinished quiz', async () => {
-    getOptions.mockImplementation(async () =>
-      json({ sources: [source], unfinished: [{ id: 4, exam: 'An exam', source: 'Set 1', feedback: 'at_end', position: 2, total: 5 }] }),
-    )
-    renderIt()
-    expect(await screen.findByRole('link', { name: 'Resume Set 1: 2 of 5 done' })).toHaveAttribute('href', '/quiz/4')
-  })
-
-  it('says when a quiz could not start', async () => {
-    getOptions.mockImplementation(async () => json({ sources: [source], unfinished: [] }))
-    postQuiz.mockImplementation(async () => json({ error: 'conflict' }, 409))
-    renderIt()
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Start Set 1, feedback at the end' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start that quiz")
+  it("shows what goes in Next's place", () => {
+    render(<QuizActions end={<button type="button">Skip</button>}>Left</QuizActions>)
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
   })
 })

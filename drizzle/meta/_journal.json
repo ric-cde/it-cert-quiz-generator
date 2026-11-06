@@ -50,6 +50,13 @@
       "when": 1793918670510,
       "tag": "0006_funny_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793962183906,
+      "tag": "0007_elite_stick",
+      "breakpoints": true
     }
   ]
 }

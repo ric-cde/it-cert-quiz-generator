@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test'
 
 test('the app loads data from the server through the production build', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText(/Connected\./)).toBeVisible()
-  await expect(page.getByText(/Admin \(admin\)/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your exams' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'OutSystems Associate Developer (O11)' })).toBeVisible()
 })
 
 test('a client-side route survives a page reload', async ({ page }) => {
@@ -128,7 +128,7 @@ test.describe('importing a question bank', () => {
 
   test('previews a file, imports it, shows it in the inspector, and can remove it', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('link', { name: 'Import questions' }).click()
+    await page.getByRole('navigation', { name: 'Manage questions' }).getByRole('link', { name: 'Import' }).click()
 
     await page.getByLabel(/Choose a question bank file/).setInputFiles(MOCK_BANK)
     await expect(page.getByRole('heading', { name: 'Mock Java practice set' })).toBeVisible()

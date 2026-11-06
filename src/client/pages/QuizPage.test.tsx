@@ -64,6 +64,7 @@ const quiz = (overrides: Partial<QuizState> = {}): QuizState => ({
   finished: false,
   current: question(),
   results: null,
+  summary: null,
   ...overrides,
 })
 
@@ -90,6 +91,7 @@ const finished = quiz({
   finished: true,
   current: null,
   results: { correct: 2, incorrect: 1, revealed: 0, skipped: 0, notReached: 0 },
+  summary: { byCategory: [{ name: 'Logic', correct: 2, asked: 3 }], missed: 1, examId: 2, label: 'Random' },
 })
 
 function renderQuiz(state: QuizState = quiz()) {
@@ -434,7 +436,7 @@ describe('QuizPage', () => {
       renderQuiz(quiz({ current: question({ flag: { reason: null } }) }))
       const user = userEvent.setup()
 
-      await user.click(await screen.findByRole('button', { name: 'Move on without answering' }))
+      await user.click(await screen.findByRole('button', { name: 'Skip' }))
 
       expect(await screen.findByText('The next question?')).toBeInTheDocument()
     })
@@ -442,7 +444,7 @@ describe('QuizPage', () => {
     it('offers no such way out of an unflagged question', async () => {
       renderQuiz()
       await screen.findByText('What is the question?')
-      expect(screen.queryByRole('button', { name: /Move on/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
     })
   })
 
@@ -497,7 +499,7 @@ describe('QuizPage', () => {
       await user.click(await screen.findByRole('button', { name: /^Next/ }))
 
       expect(await screen.findByRole('heading', { name: 'Quiz finished' })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'attempts' })).toHaveAttribute('href', '/dev/data/attempts')
+      expect(screen.getByRole('button', { name: /Retry missed \(1\)/ })).toBeInTheDocument()
     })
   })
 

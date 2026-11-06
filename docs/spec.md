@@ -80,6 +80,8 @@ Progress bars reflect each question's **latest** attempt:
 
 - **Green:** latest attempt correct. This is the % complete figure.
 - **Yellow:** attempted, latest attempt not correct.
+
+Hovering any part of a bar shows how many questions it stands for, such as "5 unanswered".
 - **Empty:** never attempted.
 
 All question types count, and a free-form partial shows yellow. Flagged questions are excluded from the totals.
@@ -95,9 +97,28 @@ All question types count, and a free-form partial shows yellow. Flagged question
 
 ### Home
 
-Subjects, with their exams below them, and each exam's sources with progress bars. An exam you've marked as passed shows **Passed** and moves down the list, and can be unmarked. A Resume link appears if a quiz is unfinished. Links to Generate, Import, Manage and Settings.
+Subjects, with their exams below them in seed order, and each exam's sources with progress bars. Each exam's **⋯** menu marks it as passed or abandoned, and undoes either.
+
+- A passed exam moves to a **Passed** list below the subjects, in seed order, still shown in full with a **Passed** badge.
+- An abandoned exam moves to a collapsed **Abandoned exams (N)** section at the very bottom, opened with one click.
+- A subject with no exams still being studied drops out of the list.
+
+Unfinished quizzes are listed at the top, one row each with a Resume button. Links to Generate, Import, Manage and Settings, and **Review flagged**, which for now lists questions whose answer was in doubt on import. Stage 8's flagged list joins it there.
+
+- Clicking anywhere on an exam card opens its take-exam screen. Clicking a source's row opens it with just that source picked.
+
+- Each row shows the quiz's name, its exam, how far through it is ("3 of 10 done") and when it started: "18:35 · Tue" within the last week, otherwise "18:35 · Nov 19", in columns that line up across rows. Long names and exams trail off with an ellipsis, and the full text shows on hover.
+- Narrower screens drop the exam first, then the start time, and a phone shows "3 of 10".
+- A quiz is named after what it was drawn from, using the single most specific name that fits. Its feedback mode and status filter aren't part of the name. Names are worked out when shown, so older quizzes follow the same rules.
+  - Nothing picked: **Random**.
+  - Sources and chapters: one chapter gives its name. Several chapters, or a source with or without its chapters, inside one source give the source's name. More than one source gives **Multiple sources**.
+  - Categories: one category or topic gives its name. Topics that share a category give that category's name. Anything else gives **Multiple categories**.
+  - With both, the most specific single name wins: a chapter, then a category, then a source. If none is single, it's **Multiple categories**.
+  - A retry is **Retry missed:** followed by the name of the quiz it retries.
 
 ### Take exam
+
+The options card comes first, below the exam's name, then Random, then the tiles. On wide screens Sources and Categories sit side by side, Sources on the left: each source as wide as two category tiles, with its chapters two across beneath it, and categories two across. Each column grows downwards. Narrower screens have one column, Categories first.
 
 **Tiles**, in this order:
 
@@ -114,35 +135,51 @@ Subjects, with their exams below them, and each exam's sources with progress bar
   - Selecting a Chapter inside a selected Source narrows that Source to the Chapter.
   - Selecting Source A plus a Chapter in Source B gives all of A plus that Chapter, rather than an empty result.
 - These tiles replace the separate Source filter in `overview.md`, and the status filter below covers its "All incorrect" and "All not attempted" presets.
-- Random clears the tile selection and draws from the whole exam, still applying the filters. While it's selected, the Categories and Sources block is visually diminished, with its text and progress bars greyed. Clicking a tile in that block turns Random off and selects the tile.
+- Random clears the tile selection and draws from the whole exam, still applying the filters. While it's selected, the Categories and Sources block is visually diminished: the tiles go flat, with grey text, grey badges and faded bars, and a line says to pick a tile to narrow things down. Tiles with questions Random will draw from have a dotted accent border, the same weight as a selected tile's. Clicking a tile in that block turns Random off and selects the tile.
+- A selected tile has a thicker accent border and a filled square check in its corner, so it can't be confused with the round official badge. Tiles whose questions are in the quiz because of other picks, without being selected themselves, have a soft blue background: a selected source brings in the categories it has questions in and all its chapters (until one of them is picked), and selected categories bring in the sources and chapters with questions in them.
 
 **Options:**
 
 | Option | Values |
 |---|---|
-| Status | All, Unanswered (never attempted), Incorrect (latest attempt wrong), Unsolved (never right) |
+| Status | All, Unanswered (never attempted), Incorrect (latest attempt wrong), Unsolved (never right). Defaults to Unanswered. |
 | Type | All, Multiple choice, Free-form. Defaults to All. |
 | Max questions | 20, 50, 100, Max presets, plus a number field for any other value. A value above what's available is capped by it. |
 | Prioritise | On/off. Decides which questions make the cut when capped. Off means a random pick. |
-| Sort | Random, Easiest 1st, Hardest 1st. Orders the chosen set. |
+| Sort | Random, Easiest 1st, Hardest 1st. Orders the chosen set. Stage 6 has Random and **Source order** (by source, then chapter, then the order questions were imported in, with a cap taking the first ones), for working through a practice exam in sequence. The final set of options is to be decided. |
 | Feedback | After each question, or At the end. See the Quiz section below. The default is set in Settings. |
 
 A live count always shows the result, for example **"20 of 137 available"**, or **"137 of 137"** on Max.
 
-**The live count must be accurate.** "x of y available" is the source of truth: starting the quiz must give exactly x questions, drawn from those y. The count, the tile counts and quiz creation all use one shared selection function on the server, with automated tests covering combinations of tiles and filters.
+**How it behaves (Stage 6):**
+
+- Random is selected whenever no tile is, so the screen opens on Random. Letting go of the last tile turns it back on.
+- Category tiles are the exam's top-level categories, with their topics counted in. Topics aren't tiles of their own. Official categories come first, in the order the syllabus defines them, then unofficial ones in the order they were added on import, all in the one list. Each has a small badge in its corner: a blue tick badge for official, a grey minus badge for unofficial, with "Official" or "Unofficial" on hover. An official category with no questions still shows, as an empty tile, so gaps in coverage are visible.
+- A tile's count is how many questions it would add now. It narrows only across types: category tiles by the sources and chapters picked, and source and chapter tiles by the categories picked. Tiles of the same type add together, so they never narrow each other. The count then applies the status filter.
+- A tile's progress bar narrows the same way, and the part the status picks stands out: it's taller than the rest of the bar, with a thin white outline and a second in its own colour. Unanswered picks the grey part, Incorrect and Unsolved the yellow, and All nothing. Unsolved picks all of the yellow, though a question that was right once and wrong since is in it.
+- A tile at 0 for now is greyed and says "0 questions", but can still be picked or let go. Only a tile with nothing that could ever be asked can't be picked.
+- Letting go of a source lets go of the chapters picked inside it. While a source is selected and expanded, a line says whether all its chapters are included or only the ones picked.
+- The tiles and status filter are kept in the address (`/exam/2?categories=4&status=incorrect`), so Back and reload keep them and other screens can link straight to a selection. Max questions, Sort and Feedback are remembered for each exam in this browser, and start from Settings until you choose.
+- The live count and Start quiz sit in a bar along the bottom of the window, full width with square edges and a tinted background. It stays in view while you scroll through the tiles. Between them, a strip has one rectangle for each question the quiz will ask, with a minimum width, wrapping onto more lines for big quizzes.
+- Keyboard: Enter starts the quiz, R picks Random, S moves through the status options, and M moves through 20, 50, 100 and Max, then into the number field. Each shows its key.
+- Type and Prioritise arrive with the features they need: Type with free-form questions in Stage 11, and Prioritise and Easiest/Hardest in Stage 7.
+
+**The live count must be accurate.** "x of y available" is the source of truth: starting the quiz must give exactly x questions, drawn from those y. The screen loads the exam's question metadata once (ids, chapter, category and your history in a word, but no question text), about 30–40 KB for 500 questions, and works out every count and bar in the browser as you click. The server creates the quiz with the same shared functions on the same data, with automated tests covering combinations of tiles and filters.
 
 ### Quiz (study mode)
 
 Both feedback modes share these:
 
 - The question is shown in Markdown. Code blocks have icon-only copy and syntax highlighting buttons. The highlighting button changes a saved global setting, because reading plain code is part of preparing for an exam that has no highlighting.
-- Every question has **Flag** and, with permission, **Edit**, at the bottom of the card.
-- Once locked, your chosen option has a **Your answer** tag in its top right corner. Whether it's right is shown by its mark and colour.
+- Every question has **Flag** and, with permission, **Edit**, on the card's action row, in a fixed place just left of where **Next** appears, so they never move as the buttons around them change. (Back in the card's top right corner is the alternative, if the row gets crowded.) A flag's optional reason opens below the row.
+- From Stage 10, icon-only **Hint** and **Explain** buttons sit in the same group (see section 6).
+- Once locked, your chosen option has a **Your answer** tag in its top right corner. Whether it's right is shown by its mark and colour. A correct option you didn't choose looks clearly different from one you did: a widely spaced dashed outline, about six wide diagonal stripes of pale green, and a **Correct answer** tag, against a solid outline, a filled background and **Your answer**.
+- The progress bar has one segment per question: answered ones in the accent colour, the current one paler, the rest grey.
 - Each attempt is saved as soon as it's made, so a quiz can be closed and resumed.
 - You can end a quiz early and go to results, after one confirmation. Answers already saved stand, and questions you never reached don't count against the score.
 - Option order is fixed per quiz and question, so resuming shows the same order and the number keys still match. Each question can be attempted once per quiz.
 - Nothing that could give the answer away, including a doubt's note and the question's category, leaves the server until the question is locked. The category then shows beside the question.
-- **Flag** works in one press, with an optional reason and **Unflag**. In after-each feedback, a flagged question can be left without answering it, and no attempt is logged.
+- **Flag** works in one press, with an optional reason and **Unflag**. In after-each feedback, a flagged question can be left without answering it with **Skip**, in the place where Next appears, and no attempt is logged.
 
 **Feedback: After each question**
 
@@ -180,6 +217,11 @@ Score, breakdown by category and one-click **Retry missed**, plus a **Review ans
 
 Each entry in the list shows the question, your answer, the correct answer and any option text. Skipped questions are marked as such. Incorrect answers also get the explanation area (see section 6).
 
+- **Retry missed** asks again the incorrect, revealed and skipped questions, with the same feedback mode, leaving out questions never reached and any flagged or deleted since. Its button shows how many, and doesn't show when there are none.
+- The category breakdown is by top-level category, weakest first, counting only questions that count towards the score.
+- Review answers starts open after an at-the-end quiz, the only place you see what you got wrong, and collapsed after an after-each one. It's fetched only when opened, lists questions in the order asked with options in the order shown, and has an **All / Missed only** switch. Questions never reached aren't listed.
+- **Practise again** goes back to the take-exam screen for the same exam.
+
 ### Exam stats
 
 - Accuracy by category over recent attempts, weakest first, each linking to a quiz on that category.
@@ -198,7 +240,7 @@ Create, edit and delete subjects, exams, categories, sources, Chapters and quest
 
 ### Settings
 
-Priority weights and quiz defaults.
+Priority weights and quiz defaults. For now, settings and remembered choices like these are kept in the browser only (localStorage), not in the database.
 
 ## 4. Question selection
 
@@ -269,10 +311,12 @@ Rules for both routes:
 | Question generation | See below | `claude-opus-5-5` |
 | Document extraction | Document and exam categories | `claude-opus-5-5` |
 | Explanations | Question, all options, which are correct, plus web search | `claude-opus-5-5` (your choice) |
+| Explain (ask your own question) | Question, its metadata, a short system prompt, your text | to be decided |
+| Hint | Question, its metadata, a short system prompt | to be decided |
 
 Models are set per feature in one config module, so changing one is a one-line edit. At current list prices, per million input/output tokens, Haiku 5.5 is $0.10 / $0.50, Sonnet 5.5 is $2 / $10 and Opus 5.5 is $4 / $20.
 
-**No automatic API calls.** Claude is only called after a deliberate action on a clearly labelled control: Generate explanation, Generate new explanation, Submit for judging, Judge N free-form answers, Generate questions or Process document. Nothing runs in the background or on page load, and showing a saved explanation makes no API call.
+**No automatic API calls.** Claude is only called after a deliberate action on a clearly labelled control: Generate explanation, Generate new explanation, Explain (after you submit your text), Hint, Submit for judging, Judge N free-form answers, Generate questions or Process document. Icon-only buttons still have an accessible name and a tooltip. Nothing runs in the background or on page load, and showing a saved explanation makes no API call.
 
 Implementation notes:
 
@@ -298,6 +342,12 @@ Other rules:
 - A free-form question has no options, so it stores one explanation on the question, covering the model answer and key points.
 - Claude uses the web search tool to check its text against current sources, favouring official documentation, and the sources are shown with it. Searches per explanation are capped, and they're billed on top of tokens.
 - This logic lives in one module, because this behaviour may be revisited.
+
+**Explain and Hint (future release, with the AI features):** two icon-only buttons on the question card's action row, beside Flag.
+
+- **Explain** appears only once the question is locked, after answering or a reveal. Pressing it opens a text box, without calling Claude, where you add what you'd like explained, such as "why isn't C right?" or "explain it for someone new to aggregates". Pressing Enter or Send makes one call with the question, its options, which are correct, its metadata (exam, category or topic, source, existing explanation text), a very short fixed system prompt saying what's happening, and your text. The answer shows below the question, as a fresh explanation for this moment. It isn't stored as the question's explanation and doesn't replace any existing text.
+- **Hint** makes one call straight away with the question, its options and similar metadata, and a very short system prompt asking for a nudge that doesn't give the answer away. It's available while answering. Whether it's offered in at-the-end feedback, and whether a hinted answer counts differently in tracking, is decided with the stage.
+- Both are logged in `ai_calls` like every other call, and neither runs without a press. Their system prompts are short and live in the same module as the other prompts, and they'll be reviewed at a future stage before release.
 
 ## 7. Permissions
 
@@ -331,4 +381,9 @@ Follows `stack.md`, including its CLAUDE.md rules.
 ## 11. To revisit
 
 - **Prioritise:** it isn't clear from the UI what this option does. Revisit its wording and presentation, at the latest in Stage 7.
+- **Explain and Hint prompts:** review the two short system prompts, and how Hint interacts with tracking, before they ship.
+- **Flag position:** it's on the action row for now, and may move back to the card's top right corner.
+- **Topics in the data model:** topics aren't selectable tiles, and won't be. Revisit how topics are captured, especially when Java's question sets arrive, so the data stays useful for stats and readiness.
+- **Sort options:** Random and Source order for now. The final set, including Easiest and Hardest 1st, is to be decided.
+- **Progress bars and Status:** the part the status picks stands out. Revisit whether Unsolved should split the yellow.
 - **Styling:** spacing and readability, starting at the Stage 2 review. `preview/index.html` is a guide to structure only.

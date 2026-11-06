@@ -1,4 +1,5 @@
-import { FlagControl } from '@/components/FlagControl'
+import { FlagButton, FlagReason } from '@/components/FlagControl'
+import { QuizActions } from '@/components/QuizActions'
 import { QuizProgress } from '@/components/QuizProgress'
 import { QuizScore } from '@/components/QuizScore'
 import { NoExplanation, QuestionExplanation } from '@/components/QuestionExplanation'
@@ -20,6 +21,8 @@ import { QuestionCard } from '@/components/QuestionCard'
 import { Spinner } from '@/components/Spinner'
 import { ReviewNotice } from '@/components/ReviewNotice'
 import { RandomTile, SourceTile, Tile, TileGrid } from '@/components/Tile'
+import { ExamCard } from '@/components/ExamCard'
+import { CategoryBreakdown, ReviewEntryCard } from '@/components/QuizReview'
 import { Verdict, type VerdictKind } from '@/components/Verdict'
 import type { CategoryChoice, ExamCategory, PlannedQuestion } from '../../shared/import'
 import type { InspectorRow, SortDir } from '../../shared/inspector'
@@ -35,6 +38,8 @@ const SECTIONS = [
   ['tiles', 'Tiles'],
   ['answers', 'Answer options'],
   ['quiz', 'Taking a quiz'],
+  ['home', 'Home'],
+  ['results', 'Results'],
   ['verdicts', 'Verdicts'],
   ['code', 'Code blocks'],
   ['markdown', 'Markdown'],
@@ -281,6 +286,12 @@ function Progress() {
       <Specimen label="Muted (while Random is selected)">
         <ProgressBar label="Muted" correct={38} incorrect={17} total={80} muted />
       </Specimen>
+      <Specimen label="Status Unanswered: the grey part stands out">
+        <ProgressBar label="Unanswered picked" correct={38} incorrect={17} total={80} emphasis="unanswered" />
+      </Specimen>
+      <Specimen label="Status Incorrect or Unsolved: the yellow part stands out">
+        <ProgressBar label="Incorrect picked" correct={38} incorrect={17} total={80} emphasis="incorrect" />
+      </Specimen>
       <Specimen label="Without the figure">
         <ProgressBar label="No figure" correct={38} incorrect={17} total={80} showPercent={false} />
       </Specimen>
@@ -297,10 +308,18 @@ function InteractiveTiles() {
     setRandom(false)
     setPicked((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]))
   }
-  const tile = (id: string, title: string, correct: number, incorrect: number, total: number) => (
+  const tile = (
+    id: string,
+    title: string,
+    correct: number,
+    incorrect: number,
+    total: number,
+    origin?: 'official' | 'unofficial',
+  ) => (
     <Tile
       key={id}
       title={title}
+      origin={origin}
       count={total}
       progress={{ correct, incorrect, total }}
       selected={!random && picked.includes(id)}
@@ -321,10 +340,10 @@ function InteractiveTiles() {
       <div>
         <h3 className={`mb-2 text-sm ${random ? 'text-ink-soft' : ''}`}>Categories</h3>
         <TileGrid>
-          {tile('oop', 'Object-Oriented Programming', 18, 7, 42)}
-          {tile('streams', 'Streams and Lambdas', 5, 9, 36)}
-          {tile('concurrency', 'Concurrency', 0, 0, 24)}
-          {tile('modules', 'Modules', 12, 0, 12)}
+          {tile('oop', 'Object-Oriented Programming', 18, 7, 42, 'official')}
+          {tile('streams', 'Streams and Lambdas', 5, 9, 36, 'official')}
+          {tile('concurrency', 'Concurrency', 0, 0, 24, 'official')}
+          {tile('modules', 'Modules from an imported file', 12, 0, 12, 'unofficial')}
         </TileGrid>
       </div>
       <div>
@@ -337,6 +356,11 @@ function InteractiveTiles() {
             chapterCount={3}
             expanded={expanded}
             onToggleExpanded={() => setExpanded((value) => !value)}
+            chapterHint={
+              !random && picked.includes('boyarsky')
+                ? 'All chapters are included. Pick some to narrow further.'
+                : undefined
+            }
             selected={!random && picked.includes('boyarsky')}
             diminished={random}
             onClick={() => toggle('boyarsky')}
@@ -382,11 +406,14 @@ function Tiles() {
         <Specimen label="Selected">
           <Tile title="Concurrency" count={42} progress={progress} selected />
         </Specimen>
+        <Specimen label="Included by another pick">
+          <Tile title="Concurrency" count={42} progress={progress} included />
+        </Specimen>
         <Specimen label="Diminished (Random is on)">
           <Tile title="Concurrency" count={42} progress={progress} diminished />
         </Specimen>
         <Specimen label="No questions">
-          <Tile title="Concurrency" count={0} progress={none} />
+          <Tile title="Concurrency" count={0} progress={none} empty />
         </Specimen>
       </div>
     </>
@@ -576,6 +603,9 @@ function Filters() {
         </FilterPanel>
       </Specimen>
       <SpecimenGrid>
+        <Specimen label="Live count as the bar along the bottom of the take-exam screen" className="col-span-full">
+          <LiveCount selected={20} available={137} bar />
+        </Specimen>
         <Specimen label="Live count, capped">
           <LiveCount selected={20} available={137} />
         </Specimen>
@@ -860,14 +890,58 @@ function QuizParts() {
   const [flagged, setFlagged] = useState(false)
   return (
     <SpecimenGrid>
-      <Specimen label="Quiz progress: neutral, because green and red mean marked">
-        <QuizProgress position={7} total={20} />
+      <Specimen label="Quiz progress: one segment per question, neutral because green and red mean marked">
+        <QuizProgress position={7} total={20} current={7} />
       </Specimen>
-      <Specimen label="Flag">
-        <FlagControl flagged={flagged} reason={null} onFlag={() => setFlagged(true)} onUnflag={() => setFlagged(false)} onSaveReason={() => {}} />
+      <Specimen label="Quiz progress: a short quiz, current question answered">
+        <QuizProgress position={3} total={5} />
       </Specimen>
-      <Specimen label="Flagged, with a reason">
-        <FlagControl flagged reason="Two options say the same thing" onFlag={() => {}} onUnflag={() => {}} onSaveReason={() => {}} />
+      <Specimen label="Quiz progress: 80 questions">
+        <QuizProgress position={50} total={80} current={50} />
+      </Specimen>
+      <Specimen label="Quiz progress: over 120 questions, one line">
+        <QuizProgress position={90} total={150} current={90} />
+      </Specimen>
+      <Specimen label="Flag: one press, and press again to unflag">
+        <FlagButton flagged={flagged} onFlag={() => setFlagged(true)} onUnflag={() => setFlagged(false)} />
+      </Specimen>
+      <Specimen label="Flagged: the reason opens below the action row">
+        <FlagReason reason="Two options say the same thing" onSaveReason={() => {}} />
+      </Specimen>
+      <Specimen label="Action row: answering. Next's place is kept, so Flag stays put" className="col-span-full">
+        <QuizActions tools={<FlagButton flagged={false} onFlag={() => {}} onUnflag={() => {}} />}>
+          <Button variant="primary" disabled>
+            Submit
+          </Button>
+          <Button>
+            Reveal answer <Kbd>R</Kbd>
+          </Button>
+        </QuizActions>
+      </Specimen>
+      <Specimen label="Action row: flagged while answering, with Skip" className="col-span-full">
+        <QuizActions
+          tools={<FlagButton flagged onFlag={() => {}} onUnflag={() => {}} />}
+          end={<Button variant="ghost">Skip</Button>}
+        >
+          <Button variant="primary" disabled>
+            Submit
+          </Button>
+          <Button>
+            Reveal answer <Kbd>R</Kbd>
+          </Button>
+        </QuizActions>
+      </Specimen>
+      <Specimen label="Action row: answered" className="col-span-full">
+        <QuizActions
+          tools={<FlagButton flagged={false} onFlag={() => {}} onUnflag={() => {}} />}
+          end={
+            <Button variant="primary">
+              Next <Kbd tone="on-accent">Enter</Kbd>
+            </Button>
+          }
+        >
+          <Verdict kind="incorrect" />
+        </QuizActions>
       </Specimen>
       <Specimen label="Doubt: before answering">
         <ReviewNotice note="The source marks A, but B looks right." answered={false} />
@@ -901,6 +975,7 @@ function TryIt() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [chosen, setChosen] = useState<number[]>([])
   const [outcome, setOutcome] = useState<'answering' | 'submitted' | 'revealed'>('answering')
+  const [flagged, setFlagged] = useState(false)
 
   const question = DEMO_QUESTIONS[questionIndex]!
   const locked = outcome !== 'answering'
@@ -920,19 +995,12 @@ function TryIt() {
   const verdict: VerdictKind = outcome === 'revealed' ? 'revealed' : isRight ? 'correct' : 'incorrect'
 
   return (
-    <QuestionCard
-      revealed={outcome === 'revealed'}
-      footer={
-        <Button size="sm" variant="ghost">
-          <Flag className="size-4" aria-hidden="true" /> Flag
-        </Button>
-      }
-    >
+    <QuestionCard revealed={outcome === 'revealed'}>
       <div className="mb-4">
         <p className="mb-1.5 text-xs text-ink-soft">
           Question {questionIndex + 1} of {DEMO_QUESTIONS.length} · Sample
         </p>
-        <QuizProgress position={questionIndex} total={DEMO_QUESTIONS.length} />
+        <QuizProgress position={questionIndex + (locked ? 1 : 0)} total={DEMO_QUESTIONS.length} current={questionIndex} />
       </div>
 
       <Markdown className="text-lg">{question.body}</Markdown>
@@ -958,14 +1026,18 @@ function TryIt() {
         })}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        {locked ? (
-          <>
-            <Verdict kind={verdict} />
-            <Button variant="primary" className="ml-auto" onClick={next}>
+      <QuizActions
+        tools={<FlagButton flagged={flagged} onFlag={() => setFlagged(true)} onUnflag={() => setFlagged(false)} />}
+        end={
+          locked && (
+            <Button variant="primary" onClick={next}>
               Next <Kbd tone="on-accent">Enter</Kbd>
             </Button>
-          </>
+          )
+        }
+      >
+        {locked ? (
+          <Verdict kind={verdict} />
         ) : (
           <>
             <Button variant="primary" disabled={chosen.length === 0} onClick={() => setOutcome('submitted')}>
@@ -976,12 +1048,104 @@ function TryIt() {
             </Button>
           </>
         )}
-      </div>
+      </QuizActions>
     </QuestionCard>
   )
 }
 
 /* ---------- Page ---------- */
+
+function HomeParts() {
+  const progress = (correct: number, incorrect: number, total: number) => ({ correct, incorrect, total })
+  return (
+    <SpecimenGrid>
+      <Specimen label="An exam with sources" className="col-span-full">
+        <ExamCard
+          exam={{
+            id: 1,
+            name: 'Java SE 21 Developer Professional (OCP)',
+            status: 'active',
+            progress: progress(140, 60, 320),
+            sources: [
+              { id: 1, name: 'OCP Study Guide (Boyarsky)', progress: progress(90, 30, 120) },
+              { id: 2, name: 'Enthuware Practice Sets', progress: progress(50, 30, 200) },
+            ],
+          }}
+          onStatus={() => {}}
+        />
+      </Specimen>
+      <Specimen label="An exam with no questions yet" className="col-span-full">
+        <ExamCard
+          exam={{ id: 2, name: 'Claude Developer Professional', status: 'active', progress: progress(0, 0, 0), sources: [] }}
+          onStatus={() => {}}
+        />
+      </Specimen>
+      <Specimen label="Passed: lower on the page, with its own menu" className="col-span-full">
+        <ExamCard
+          exam={{
+            id: 3,
+            name: 'OutSystems Associate Developer (O11)',
+            status: 'passed',
+            progress: progress(170, 10, 200),
+            sources: [{ id: 3, name: 'Official practice exam', progress: progress(170, 10, 200) }],
+          }}
+          onStatus={() => {}}
+        />
+      </Specimen>
+    </SpecimenGrid>
+  )
+}
+
+const REVIEW_OPTIONS = (chosen: number | null) =>
+  [
+    { id: 1, bodyMd: '`List.of()` returns an immutable list', isCorrect: true, explanationMd: 'Adding to it throws `UnsupportedOperationException`.' },
+    { id: 2, bodyMd: '`List.of()` allows `null` elements', isCorrect: false, explanationMd: 'It throws `NullPointerException` for a null element.' },
+    { id: 3, bodyMd: '`List.of()` returns an `ArrayList`', isCorrect: false, explanationMd: null },
+  ].map((option) => ({ ...option, chosen: option.id === chosen }))
+
+function ResultsParts() {
+  const entry = {
+    questionId: 1,
+    type: 'single' as const,
+    bodyMd: 'Which statement about `List.of()` is true?',
+    source: 'OCP Study Guide (Boyarsky)',
+    category: 'Working with Arrays and Collections',
+    explanationMd: null,
+    reviewNote: null,
+  }
+  return (
+    <SpecimenGrid>
+      <Specimen label="By category, weakest first" className="col-span-full">
+        <CategoryBreakdown
+          categories={[
+            { name: 'Managing Concurrent Code Execution', correct: 1, asked: 4 },
+            { name: 'Working with Streams and Lambda Expressions', correct: 3, asked: 5 },
+            { name: 'Controlling Program Flow', correct: 6, asked: 6 },
+          ]}
+        />
+      </Specimen>
+      <Specimen label="Review answers: incorrect">
+        <ReviewEntryCard entry={{ ...entry, number: 3, outcome: 'incorrect', options: REVIEW_OPTIONS(2) }} />
+      </Specimen>
+      <Specimen label="Review answers: correct">
+        <ReviewEntryCard entry={{ ...entry, number: 4, outcome: 'correct', options: REVIEW_OPTIONS(1) }} />
+      </Specimen>
+      <Specimen label="Review answers: revealed">
+        <ReviewEntryCard entry={{ ...entry, number: 5, outcome: 'revealed', options: REVIEW_OPTIONS(null) }} />
+      </Specimen>
+      <Specimen label="Review answers: skipped, with no text at all">
+        <ReviewEntryCard
+          entry={{
+            ...entry,
+            number: 6,
+            outcome: 'skipped',
+            options: REVIEW_OPTIONS(null).map((option) => ({ ...option, explanationMd: null })),
+          }}
+        />
+      </Specimen>
+    </SpecimenGrid>
+  )
+}
 
 export function ComponentGalleryPage() {
   return (
@@ -1054,6 +1218,12 @@ export function ComponentGalleryPage() {
           </Section>
           <Section id="quiz" title="Taking a quiz" intro="The parts of the quiz screen that aren't shown elsewhere.">
             <QuizParts />
+          </Section>
+          <Section id="home" title="Home" intro="Each exam, with its own progress and each source's.">
+            <HomeParts />
+          </Section>
+          <Section id="results" title="Results" intro="The end of a quiz: how each category went, and Review answers.">
+            <ResultsParts />
           </Section>
           <Section id="verdicts" title="Verdicts">
             <div className="flex flex-wrap gap-2">

@@ -31,8 +31,11 @@ export function answerState({
 const containerByState: Record<AnswerState, string> = {
   idle: 'border-line-strong/70 bg-surface cursor-pointer hocus:border-accent hocus:bg-accent-soft/40',
   selected: 'border-accent bg-accent-soft cursor-pointer',
-  'correct-chosen': 'border-correct bg-correct-soft',
-  'correct-missed': 'border-correct border-dashed bg-correct-soft/50',
+  // A picked correct answer is solid and filled. A missed one has wide dashes and green stripes,
+  // sized by percentage so there are about six across, whatever the option's width.
+  'correct-chosen': 'border-correct bg-correct-soft shadow-[inset_0_0_0_1px_var(--color-correct)]',
+  'correct-missed':
+    'relative border-transparent bg-surface bg-[image:repeating-linear-gradient(135deg,var(--color-correct-soft)_0_7%,transparent_7%_14%)]',
   'wrong-chosen': 'border-wrong bg-wrong-soft animate-nudge',
   neutral: 'border-line bg-surface',
 }
@@ -40,13 +43,34 @@ const containerByState: Record<AnswerState, string> = {
 /** The mark and colour show this on screen. These words are for screen readers. */
 const meaningByState: Partial<Record<AnswerState, string>> = {
   'correct-chosen': 'Marked correct',
-  'correct-missed': 'Correct answer',
   'wrong-chosen': 'Marked incorrect',
 }
 
-const yourAnswerTagByState: Partial<Record<AnswerState, string>> = {
-  'correct-chosen': 'border-correct text-correct-ink',
-  'wrong-chosen': 'border-wrong text-wrong-ink',
+/** The tag in an option's top right corner, once locked. */
+const tagByState: Partial<Record<AnswerState, { text: string; className: string }>> = {
+  'correct-chosen': { text: 'Your answer', className: 'border-correct text-correct-ink' },
+  'wrong-chosen': { text: 'Your answer', className: 'border-wrong text-wrong-ink' },
+  'correct-missed': { text: 'Correct answer', className: 'border-dashed border-correct text-correct-ink' },
+}
+
+/**
+ * The border of a correct answer you didn't pick. CSS dashes are short and close together, which
+ * looks too like a solid line, so this draws its own with wider gaps.
+ */
+function WideDashedBorder() {
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute -top-[0.75px] -left-[0.75px] size-[calc(100%+1.5px)] overflow-visible text-correct">
+      <rect
+        width="100%"
+        height="100%"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeDasharray="7 6"
+        style={{ rx: 'calc(var(--radius-md) - 0.75px)', ry: 'calc(var(--radius-md) - 0.75px)' }}
+      />
+    </svg>
+  )
 }
 
 function Marker({ state, kind }: { state: AnswerState; kind: 'single' | 'multi' }) {
@@ -105,7 +129,7 @@ export function AnswerOption({
   const interactive = state === 'idle' || state === 'selected'
   const inactive = !interactive || disabled
   const meaning = meaningByState[state]
-  const yourAnswerTag = yourAnswerTagByState[state]
+  const tag = tagByState[state]
 
   return (
     <label
@@ -119,6 +143,7 @@ export function AnswerOption({
         disabled && interactive && 'cursor-not-allowed opacity-60',
       )}
     >
+      {state === 'correct-missed' && <WideDashedBorder />}
       <input
         type={kind === 'single' ? 'radio' : 'checkbox'}
         name={name}
@@ -143,14 +168,14 @@ export function AnswerOption({
             <Kbd>{shortcut}</Kbd>
           </span>
         )}
-        {yourAnswerTag && (
+        {tag && (
           <span
             className={clsx(
               'flex-none rounded-full border bg-surface px-2 py-px text-xs font-bold whitespace-nowrap',
-              yourAnswerTag,
+              tag.className,
             )}
           >
-            Your answer
+            {tag.text}
           </span>
         )}
       </span>

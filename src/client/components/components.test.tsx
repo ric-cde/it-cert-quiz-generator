@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnswerOption, answerState } from './AnswerOption'
 import { Button } from './Button'
 import { CodeBlock } from './CodeBlock'
-import { LiveCount, MaxQuestionsPicker, parseMaxQuestions, Segmented, Switch } from './Filters'
+import { LiveCount, MaxQuestionsPicker, nextMaxQuestions, parseMaxQuestions, Segmented, Switch } from './Filters'
 import { Markdown } from './Markdown'
 import { ProgressBar, progressSegments } from './ProgressBar'
 import { QuestionCard } from './QuestionCard'
@@ -106,6 +106,24 @@ describe('AnswerOption', () => {
       </AnswerOption>,
     )
     expect(screen.queryAllByText('Your answer')).toHaveLength(shown ? 1 : 0)
+  })
+
+  it('tells a missed correct answer apart from a picked one', () => {
+    const { container, rerender } = render(
+      <AnswerOption kind="single" name="q" state="correct-missed">
+        Option A
+      </AnswerOption>,
+    )
+    expect(screen.getByText('Correct answer')).toBeInTheDocument()
+    expect(container.querySelector('svg rect[stroke-dasharray]')).not.toBeNull()
+
+    rerender(
+      <AnswerOption kind="single" name="q" state="correct-chosen">
+        Option A
+      </AnswerOption>,
+    )
+    expect(screen.queryByText('Correct answer')).not.toBeInTheDocument()
+    expect(container.querySelector('svg rect[stroke-dasharray]')).toBeNull()
   })
 
   it('shows per-answer text when there is some, and nothing when there is none', () => {
@@ -235,9 +253,40 @@ describe('Tile', () => {
     expect(onClick).toHaveBeenCalledOnce()
   })
 
-  it('cannot be selected with no questions', () => {
-    render(<Tile title="OOP" count={0} progress={{ correct: 0, incorrect: 0, total: 0 }} />)
+  it.each([
+    ['all', []],
+    ['unanswered', ['unanswered']],
+    ['incorrect', ['incorrect']],
+    ['unsolved', ['incorrect']],
+  ] as const)('makes the part of its bar that the %s status picks stand out', (emphasis, standing) => {
+    const { container } = render(
+      <Tile title="OOP" count={9} emphasis={emphasis} progress={{ correct: 5, incorrect: 3, total: 10 }} />,
+    )
+    const picked = [...container.querySelectorAll('[data-picked]')].map((segment) => segment.getAttribute('data-segment'))
+    expect(picked).toEqual(standing)
+  })
+
+  it('shows its questions are in with a soft blue background, unless it has none left', () => {
+    const { rerender } = render(<Tile title="OOP" count={4} included progress={progress} />)
+    expect(screen.getByRole('button', { name: /OOP/ })).toHaveClass('bg-accent-soft')
+    rerender(<Tile title="OOP" count={0} included progress={progress} />)
+    expect(screen.getByRole('button', { name: /OOP/ })).not.toHaveClass('bg-accent-soft')
+  })
+
+  it('says what each part of its bar stands for on hover', () => {
+    const { container } = render(<Tile title="OOP" count={9} progress={{ correct: 5, incorrect: 3, total: 10 }} />)
+    const titles = [...container.querySelectorAll('[data-segment]')].map((segment) => segment.getAttribute('title'))
+    expect(titles).toEqual(['5 correct', '3 incorrect', '2 unanswered'])
+  })
+
+  it('cannot be selected when it has no questions at all', () => {
+    render(<Tile title="OOP" count={0} empty progress={{ correct: 0, incorrect: 0, total: 0 }} />)
     expect(screen.getByRole('button', { name: /OOP/ })).toBeDisabled()
+  })
+
+  it('can still be selected at 0 for now, such as when other picks leave nothing in it', () => {
+    render(<Tile title="OOP" count={0} progress={{ correct: 1, incorrect: 0, total: 3 }} />)
+    expect(screen.getByRole('button', { name: /OOP/ })).toBeEnabled()
   })
 
   it('uses the singular for one question', () => {
@@ -473,5 +522,15 @@ describe('Button', () => {
     expect(button).toHaveAttribute('aria-busy', 'true')
     await userEvent.click(button)
     expect(onClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('nextMaxQuestions', () => {
+  it('goes through the presets and Max, then to the number field, and back from a custom number', () => {
+    expect(nextMaxQuestions(20)).toBe(50)
+    expect(nextMaxQuestions(50)).toBe(100)
+    expect(nextMaxQuestions(100)).toBe('max')
+    expect(nextMaxQuestions('max')).toBeNull()
+    expect(nextMaxQuestions(7)).toBe(20)
   })
 })

@@ -14,8 +14,9 @@ vi.mock('@/lib/settings', () => ({
 vi.mock('@/lib/api', () => ({
   api: {
     api: {
-      health: { $get: vi.fn() },
-      quizzes: { 'start-options': { $get: vi.fn(async () => Response.json({ sources: [], unfinished: [] })) } },
+      home: { $get: vi.fn() },
+      me: { $get: vi.fn(async () => Response.json({ id: 1, name: 'Admin', role: 'admin' })) },
+      exams: { ':id': { status: { $put: vi.fn(async () => Response.json({ ok: true })) } } },
     },
   },
 }))
@@ -29,17 +30,98 @@ function renderPage(page: React.ReactNode) {
   )
 }
 
+const progress = (correct: number, incorrect: number, total: number) => ({ correct, incorrect, total })
+const overview = {
+  subjects: [
+    {
+      id: 1,
+      name: 'OutSystems',
+      exams: [
+        {
+          id: 2,
+          name: 'Associate Developer (O11)',
+          status: 'active',
+          progress: progress(3, 1, 10),
+          sources: [{ id: 7, name: 'Practice exam', progress: progress(3, 1, 10) }],
+        },
+        { id: 3, name: 'An empty exam', status: 'active', progress: progress(0, 0, 0), sources: [] },
+      ],
+    },
+  ],
+  passed: [{ id: 4, name: 'A passed exam', status: 'passed', progress: progress(9, 1, 10), sources: [] }],
+  abandoned: [{ id: 5, name: 'An abandoned exam', status: 'abandoned', progress: progress(1, 1, 10), sources: [] }],
+  unfinished: [
+    {
+      id: 9,
+      exam: 'Associate Developer (O11)',
+      label: 'Random',
+      feedback: 'at_end',
+      position: 2,
+      total: 20,
+      // Long enough ago to show its date rather than its day.
+      startedAt: new Date(2025, 10, 19, 18, 35).toISOString(),
+    },
+  ],
+}
+
 describe('HomePage', () => {
-  it('shows data loaded from the server', async () => {
-    vi.mocked(api.api.health.$get).mockResolvedValue(
-      Response.json({ status: 'ok', users: [{ name: 'Admin', role: 'admin' }] }) as never,
-    )
+  it('shows each subject, its exams and their sources with progress', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
     renderPage(<HomePage />)
-    expect(await screen.findByText(/Admin \(admin\)/)).toBeInTheDocument()
+
+    expect(await screen.findByRole('heading', { name: 'OutSystems' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Practise Associate Developer (O11)' })).toHaveAttribute('href', '/exam/2')
+    expect(screen.getByRole('progressbar', { name: 'Practice exam progress' })).toHaveAttribute('aria-valuenow', '30')
+    expect(screen.getByText('No questions yet')).toBeInTheDocument()
+  })
+
+  it('links to an unfinished quiz', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
+    renderPage(<HomePage />)
+    expect(await screen.findByRole('link', { name: 'Resume Random: 2 of 20 done' })).toHaveAttribute('href', '/quiz/9')
+    expect(screen.getByText('18:35 · Nov 19')).toBeInTheDocument()
+    expect(screen.getByText(/^2 of 20/)).toHaveTextContent('2 of 20 done')
+    expect(screen.queryByText(/at the end/)).not.toBeInTheDocument()
+  })
+
+  it('offers Import and Review to an admin', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
+    renderPage(<HomePage />)
+    expect(await screen.findByRole('link', { name: 'Review flagged' })).toHaveAttribute('href', '/review')
+    expect(screen.getByRole('link', { name: 'Import' })).toHaveAttribute('href', '/import')
+  })
+
+  it('opens the exam from anywhere on its card, and a source with just that source picked', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
+    renderPage(<HomePage />)
+    expect(await screen.findByRole('link', { name: 'Practice exam' })).toHaveAttribute('href', '/exam/2?sources=7')
+  })
+
+  it('lists passed exams below, and keeps abandoned ones folded away until asked for', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
+    const user = userEvent.setup()
+    renderPage(<HomePage />)
+
+    const passed = await screen.findByRole('region', { name: 'Passed' })
+    expect(within(passed).getByRole('heading', { name: /A passed exam/ })).toHaveTextContent('Passed')
+    expect(screen.queryByText('An abandoned exam')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Abandoned exams (1)' }))
+    expect(screen.getByText('An abandoned exam')).toBeInTheDocument()
+  })
+
+  it('marks an exam as passed from its menu', async () => {
+    vi.mocked(api.api.home.$get).mockResolvedValue(Response.json(overview) as never)
+    const user = userEvent.setup()
+    renderPage(<HomePage />)
+
+    await user.click(await screen.findByRole('button', { name: 'More for Associate Developer (O11)' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Mark as passed' }))
+    expect(api.api.exams[':id'].status.$put).toHaveBeenCalledWith({ param: { id: '2' }, json: { status: 'passed' } })
   })
 
   it('says so when the server fails', async () => {
-    vi.mocked(api.api.health.$get).mockResolvedValue(new Response(null, { status: 500 }) as never)
+    vi.mocked(api.api.home.$get).mockResolvedValue(new Response(null, { status: 500 }) as never)
     renderPage(<HomePage />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Server responded with 500')
   })

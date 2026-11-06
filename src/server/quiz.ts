@@ -1,9 +1,19 @@
-import { and, asc, count, desc, eq, inArray, isNull, ne, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
-import type { Feedback } from '../shared/domain'
-import type { QuizQuestion, QuizResults, QuizStartOptions, QuizState } from '../shared/quiz'
+import type {
+  CategoryResult,
+  CreateQuizBody,
+  QuizQuestion,
+  QuizResults,
+  QuizState,
+  QuizSummary,
+  ReviewEntry,
+  ReviewOutcome,
+} from '../shared/quiz'
 import type { Db, Tx } from './db'
 import { attempts, categories, chapters, exams, options, questions, quizzes, sources } from './db/schema'
+import { selectQuestions } from '../shared/practice'
+import { describeSelection, loadPool } from './selection'
 import { correctOptionIds, isExactMatch, recordAttempt } from './tracking'
 
 type QuizRow = typeof quizzes.$inferSelect
@@ -14,27 +24,6 @@ export type QuizFailure = 'not-found' | 'conflict' | 'invalid'
 export type QuizOutcome = { ok: true; state: QuizState } | { ok: false; error: QuizFailure }
 
 /* ---------- Choosing questions ---------- */
-
-/**
- * What can appear in a quiz. Free-form questions wait for Stage 11, and Stage 6 grows this into the
- * shared selection function behind the live count.
- */
-const selectable = (sourceId: number): SQL =>
-  and(
-    eq(chapters.sourceId, sourceId),
-    isNull(questions.deletedAt),
-    isNull(questions.flaggedAt),
-    ne(questions.type, 'free_form'),
-  )!
-
-function countSelectable(db: Reader, sourceId: number) {
-  return db
-    .select({ value: count() })
-    .from(questions)
-    .innerJoin(chapters, eq(questions.chapterId, chapters.id))
-    .where(selectable(sourceId))
-    .get()!.value
-}
 
 /** A small repeatable generator, so the same seed always gives the same order. */
 function seededRandom(seed: string) {
@@ -57,33 +46,28 @@ export function shuffled<T>(items: readonly T[], random: () => number = Math.ran
   return result
 }
 
+/** Starts a quiz from the take-exam screen, using the same selection as the live count. */
 export function createQuiz(
   db: Db,
   userId: number,
-  { sourceId, feedback, limit }: { sourceId: number; feedback: Feedback; limit?: number },
+  { examId, feedback, limit, sort, ...selection }: CreateQuizBody,
 ): { ok: true; id: number } | { ok: false; error: 'not-found' | 'conflict' } {
   return db.transaction((tx) => {
-    const source = tx.select().from(sources).where(eq(sources.id, sourceId)).get()
-    if (!source) return { ok: false, error: 'not-found' }
+    const exam = tx.select({ id: exams.id }).from(exams).where(eq(exams.id, examId)).get()
+    if (!exam) return { ok: false, error: 'not-found' }
 
-    const ids = tx
-      .select({ id: questions.id })
-      .from(questions)
-      .innerJoin(chapters, eq(questions.chapterId, chapters.id))
-      .where(selectable(sourceId))
-      .all()
-      .map((question) => question.id)
-    // Nothing to ask, such as a source of only flagged questions.
+    const ids = selectQuestions(loadPool(tx, userId, examId), selection)
+    // Nothing to ask, such as a status filter that nothing passes.
     if (ids.length === 0) return { ok: false, error: 'conflict' }
 
     const quiz = tx
       .insert(quizzes)
       .values({
         userId,
-        examId: source.examId,
+        examId,
         mode: 'study',
-        config: { feedback, sourceId },
-        questionIds: shuffled(ids).slice(0, limit),
+        config: { feedback, selection, sort, ...(limit ? { limit } : {}) },
+        questionIds: (sort === 'source' ? ids : shuffled(ids)).slice(0, limit),
       })
       .returning()
       .get()
@@ -91,32 +75,76 @@ export function createQuiz(
   })
 }
 
-export function listStartOptions(db: Db, userId: number): QuizStartOptions {
-  const sourceRows = db
-    .select({ id: sources.id, exam: exams.name, name: sources.name })
-    .from(sources)
-    .innerJoin(exams, eq(sources.examId, exams.id))
-    .orderBy(asc(exams.id), asc(sources.name))
-    .all()
-  const unfinished = db
-    .select({ quiz: quizzes, exam: exams.name })
-    .from(quizzes)
-    .innerJoin(exams, eq(quizzes.examId, exams.id))
-    .where(and(eq(quizzes.userId, userId), isNull(quizzes.finishedAt)))
-    .orderBy(desc(quizzes.id))
-    .all()
+/** Questions that can go into a new quiz now: not removed, not flagged, and not free-form until Stage 11. */
+const askableIds = (db: Reader, ids: number[]) =>
+  new Set(
+    ids.length
+      ? db
+          .select({ id: questions.id })
+          .from(questions)
+          .where(
+            and(
+              inArray(questions.id, ids),
+              isNull(questions.deletedAt),
+              isNull(questions.flaggedAt),
+              ne(questions.type, 'free_form'),
+            ),
+          )
+          .all()
+          .map((question) => question.id)
+      : [],
+  )
 
-  return {
-    sources: sourceRows.map((source) => ({ ...source, available: countSelectable(db, source.id) })),
-    unfinished: unfinished.map(({ quiz, exam }) => ({
-      id: quiz.id,
-      exam,
-      source: sourceRows.find((source) => source.id === quiz.config.sourceId)?.name ?? 'Removed source',
-      feedback: quiz.config.feedback,
-      position: quiz.position,
-      total: quiz.questionIds.length,
-    })),
+/** What Retry missed asks again: incorrect, revealed and skipped questions, but not ones never reached. */
+function missedIds(quiz: QuizRow, history: AttemptRow[]) {
+  const byQuestion = new Map(history.map((attempt) => [attempt.questionId, attempt]))
+  return quiz.questionIds.filter((id, index) => {
+    const attempt = byQuestion.get(id)
+    return attempt ? attempt.result !== 'correct' : index < quiz.position
+  })
+}
+
+/** Starts a new quiz of the questions missed in a finished one, with the same feedback. */
+export function retryMissed(db: Db, userId: number, quizId: number): { ok: true; id: number } | { ok: false; error: QuizFailure } {
+  return db.transaction((tx) => {
+    const quiz = findQuiz(tx, userId, quizId)
+    if (!quiz) return { ok: false, error: 'not-found' }
+    if (!quiz.finishedAt) return { ok: false, error: 'conflict' }
+
+    const askable = askableIds(tx, quiz.questionIds)
+    const ids = missedIds(quiz, attemptsIn(tx, quiz.id)).filter((id) => askable.has(id))
+    if (ids.length === 0) return { ok: false, error: 'conflict' }
+
+    const created = tx
+      .insert(quizzes)
+      .values({
+        userId,
+        examId: quiz.examId,
+        mode: 'study',
+        config: { feedback: quiz.config.feedback, retryOf: quiz.id },
+        questionIds: shuffled(ids),
+      })
+      .returning()
+      .get()
+    return { ok: true, id: created.id }
+  })
+}
+
+/**
+ * A quiz's name, worked out when it's shown so every quiz follows the current naming rules. A
+ * retry is named after the quiz it retries, and Stage 5 quizzes after their source.
+ */
+export function labelOf(db: Reader, quiz: QuizRow): string {
+  if (quiz.config.selection) return describeSelection(db, quiz.config.selection)
+  if (quiz.config.retryOf) {
+    const original = findQuiz(db, quiz.userId, quiz.config.retryOf)
+    return `Retry missed: ${original ? labelOf(db, original) : 'Quiz'}`
   }
+  if (quiz.config.label) return quiz.config.label
+  const source = quiz.config.sourceId
+    ? db.select({ name: sources.name }).from(sources).where(eq(sources.id, quiz.config.sourceId)).get()
+    : undefined
+  return source?.name ?? 'Quiz'
 }
 
 /* ---------- Reading a quiz ---------- */
@@ -236,6 +264,52 @@ function currentQuestion(db: Reader, quiz: QuizRow, questionId: number, attempt:
   }
 }
 
+/** The category of each question, as its top-level name and as shown beside a question. */
+function categoriesOf(db: Reader, ids: number[]) {
+  const rows = ids.length
+    ? db
+        .select({ id: questions.id, category: categories.name, parent: parentCategories.name })
+        .from(questions)
+        .innerJoin(categories, eq(questions.categoryId, categories.id))
+        .leftJoin(parentCategories, eq(categories.parentId, parentCategories.id))
+        .where(inArray(questions.id, ids))
+        .all()
+    : []
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { top: row.parent ?? row.category, full: row.parent ? `${row.parent} › ${row.category}` : row.category },
+    ]),
+  )
+}
+
+/** How each category went, weakest first. Only questions that count towards the score are included. */
+function byCategoryOf(db: Reader, quiz: QuizRow, history: AttemptRow[], live: Set<number>): CategoryResult[] {
+  const byQuestion = new Map(history.map((attempt) => [attempt.questionId, attempt]))
+  const counted = quiz.questionIds.filter((id, index) => byQuestion.has(id) || (live.has(id) && index < quiz.position))
+  const names = categoriesOf(db, counted)
+
+  const totals = new Map<string, CategoryResult>()
+  for (const id of counted) {
+    const name = names.get(id)?.top ?? 'Uncategorised'
+    const entry = totals.get(name) ?? { name, correct: 0, asked: 0 }
+    entry.asked += 1
+    if (byQuestion.get(id)?.result === 'correct') entry.correct += 1
+    totals.set(name, entry)
+  }
+  return [...totals.values()].sort((a, b) => a.correct / a.asked - b.correct / b.asked || a.name.localeCompare(b.name))
+}
+
+function summaryOf(db: Reader, quiz: QuizRow, history: AttemptRow[], live: Set<number>): QuizSummary {
+  const askable = askableIds(db, quiz.questionIds)
+  return {
+    byCategory: byCategoryOf(db, quiz, history, live),
+    missed: missedIds(quiz, history).filter((id) => askable.has(id)).length,
+    examId: quiz.examId,
+    label: labelOf(db, quiz),
+  }
+}
+
 function buildState(db: Reader, quiz: QuizRow): QuizState {
   const exam = db.select({ name: exams.name }).from(exams).where(eq(exams.id, quiz.examId)).get()!
   const history = attemptsIn(db, quiz.id)
@@ -247,12 +321,87 @@ function buildState(db: Reader, quiz: QuizRow): QuizState {
     position: quiz.position,
   }
   if (quiz.finishedAt) {
-    const results = resultsOf(quiz, history, liveQuestionIds(db, quiz.questionIds))
-    return { ...base, finished: true, current: null, results }
+    const live = liveQuestionIds(db, quiz.questionIds)
+    const results = resultsOf(quiz, history, live)
+    return { ...base, finished: true, current: null, results, summary: summaryOf(db, quiz, history, live) }
   }
   const id = quiz.questionIds[quiz.position]!
   const attempt = history.find((item) => item.questionId === id)
-  return { ...base, finished: false, current: currentQuestion(db, quiz, id, attempt), results: null }
+  return { ...base, finished: false, current: currentQuestion(db, quiz, id, attempt), results: null, summary: null }
+}
+
+/**
+ * The Review answers list for a finished quiz: every question that counts towards the score, in
+ * the order asked, with the options in the order they were shown.
+ */
+export function reviewQuiz(db: Db, userId: number, quizId: number): ReviewEntry[] | QuizFailure {
+  return db.transaction((tx) => {
+    const quiz = findQuiz(tx, userId, quizId)
+    if (!quiz) return 'not-found'
+    if (!quiz.finishedAt) return 'conflict'
+
+    const history = new Map(attemptsIn(tx, quiz.id).map((attempt) => [attempt.questionId, attempt]))
+    const live = liveQuestionIds(tx, quiz.questionIds)
+    const asked = quiz.questionIds
+      .map((id, index) => ({ id, number: index + 1, attempt: history.get(id) }))
+      .filter(({ id, number, attempt }) => attempt !== undefined || (live.has(id) && number - 1 < quiz.position))
+    const ids = asked.map(({ id }) => id)
+    if (ids.length === 0) return []
+
+    const names = categoriesOf(tx, ids)
+    const rows = new Map(
+      tx
+        .select({ question: questions, source: sources.name })
+        .from(questions)
+        .innerJoin(chapters, eq(questions.chapterId, chapters.id))
+        .innerJoin(sources, eq(chapters.sourceId, sources.id))
+        .where(inArray(questions.id, ids))
+        .all()
+        .map((row) => [row.question.id, row]),
+    )
+    const optionRows = tx
+      .select()
+      .from(options)
+      .where(and(inArray(options.questionId, ids), isNull(options.deletedAt)))
+      .orderBy(asc(options.position))
+      .all()
+
+    return asked.flatMap(({ id, number, attempt }): ReviewEntry[] => {
+      const row = rows.get(id)
+      if (!row || row.question.type === 'free_form') return []
+      const { question } = row
+      const own = optionRows.filter((option) => option.questionId === id)
+      const ordered = question.lockOptionOrder ? own : shuffled(own, seededRandom(`${quiz.id}:${id}`))
+      const chosen = new Set(attempt?.selectedOptionIds ?? [])
+      const outcome: ReviewOutcome = !attempt
+        ? 'skipped'
+        : attempt.kind === 'revealed'
+          ? 'revealed'
+          : attempt.result === 'correct'
+            ? 'correct'
+            : 'incorrect'
+      return [
+        {
+          number,
+          questionId: id,
+          type: question.type as ReviewEntry['type'],
+          bodyMd: question.bodyMd,
+          source: row.source,
+          category: names.get(id)?.full ?? '',
+          outcome,
+          options: ordered.map((option) => ({
+            id: option.id,
+            bodyMd: option.bodyMd,
+            isCorrect: option.isCorrect,
+            chosen: chosen.has(option.id),
+            explanationMd: option.explanationMd,
+          })),
+          explanationMd: question.explanationMd,
+          reviewNote: question.reviewNote !== null && question.reviewedAt === null ? question.reviewNote : null,
+        },
+      ]
+    })
+  })
 }
 
 export function getQuizState(db: Db, userId: number, quizId: number): QuizState | null {

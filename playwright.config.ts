@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   reporter: 'list',
+  // Each test takes a few seconds alone, but many browsers at once on a laptop can slow them past 30.
+  timeout: 60_000,
   use: {
     baseURL: `http://localhost:${PORT}`,
     channel: 'chrome',

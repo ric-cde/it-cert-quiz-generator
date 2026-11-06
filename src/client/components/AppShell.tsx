@@ -10,7 +10,9 @@ export function AppShell() {
   })
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    // A size container, so a page can stretch something to the full width of the window with `cqw`,
+    // which unlike `vw` leaves out the scrollbar.
+    <div className="@container flex min-h-dvh flex-col">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center px-4 py-3">
           <Link to="/" className="flex items-center gap-2 font-bold text-ink hover:text-ink">

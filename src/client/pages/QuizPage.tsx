@@ -2,33 +2,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { AnswerOption, answerState } from '@/components/AnswerOption'
-import { Button, buttonClass } from '@/components/Button'
-import { FlagControl } from '@/components/FlagControl'
+import { Button } from '@/components/Button'
+import { FlagButton, FlagReason } from '@/components/FlagControl'
 import { Kbd } from '@/components/Kbd'
 import { Markdown } from '@/components/Markdown'
 import { QuestionCard } from '@/components/QuestionCard'
 import { NoExplanation, QuestionExplanation } from '@/components/QuestionExplanation'
+import { QuizActions, rowButton } from '@/components/QuizActions'
 import { QuizProgress } from '@/components/QuizProgress'
-import { QuizScore } from '@/components/QuizScore'
 import { ReviewNotice } from '@/components/ReviewNotice'
 import { Spinner } from '@/components/Spinner'
 import { Verdict } from '@/components/Verdict'
 import { api } from '@/lib/api'
 import { HttpError, readJson } from '@/lib/http'
+import { isForShortcuts } from '@/lib/shortcuts'
 import type { QuizQuestion, QuizState } from '../../shared/quiz'
+import { QuizResults } from './QuizResults'
 
 const quizKey = (id: string) => ['quiz', id]
-
-/** Shortcuts stay out of the way while typing, and of the browser's own, such as Ctrl+R. */
-function isForShortcuts(event: KeyboardEvent) {
-  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return false
-  const target = event.target
-  if (!(target instanceof HTMLElement)) return true
-  if (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return false
-  if (target instanceof HTMLInputElement) return target.type === 'radio' || target.type === 'checkbox'
-  // Enter on a focused button or link already presses it.
-  return !(event.key === 'Enter' && (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement))
-}
 
 function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizState; question: QuizQuestion }) {
   const queryClient = useQueryClient()
@@ -136,25 +127,13 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
   }, [])
 
   return (
-    <QuestionCard
-      revealed={revealed}
-      footer={
-        <FlagControl
-          flagged={flagged}
-          reason={question.flag?.reason ?? null}
-          busy={flagging.isPending}
-          onFlag={() => flagging.mutate({ flag: true })}
-          onUnflag={() => flagging.mutate({ flag: false })}
-          onSaveReason={(reason) => flagging.mutate({ flag: true, reason })}
-        />
-      }
-    >
+    <QuestionCard revealed={revealed}>
       <div ref={top} tabIndex={-1} className="mb-4 outline-none">
         <p className="mb-1.5 text-xs break-words text-ink-soft">
           Question {quiz.position + 1} of {quiz.total} · {question.source}
           {question.category && ` · ${question.category}`}
         </p>
-        <QuizProgress position={quiz.position + (locked ? 1 : 0)} total={quiz.total} />
+        <QuizProgress position={quiz.position + (locked ? 1 : 0)} total={quiz.total} current={quiz.position} />
       </div>
 
       {question.inDoubt && (
@@ -194,39 +173,52 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap items-center gap-2.5" aria-live="polite">
-        {atEnd && (
-          <>
-            {chosen.length === 0 && <p className="text-sm text-ink-soft">Nothing selected, so Next skips this one.</p>}
-            <Button variant="primary" className="ml-auto" loading={busy} onClick={nextAtEnd}>
+      <QuizActions
+        tools={
+          <FlagButton
+            flagged={flagged}
+            busy={flagging.isPending}
+            onFlag={() => flagging.mutate({ flag: true })}
+            onUnflag={() => flagging.mutate({ flag: false })}
+          />
+        }
+        end={
+          atEnd || locked ? (
+            <Button variant="primary" className={rowButton} loading={busy} onClick={atEnd ? nextAtEnd : moveOn}>
               Next <Kbd tone="on-accent">Enter</Kbd>
             </Button>
-          </>
-        )}
-        {!atEnd && locked && (
-          <>
-            <Verdict kind={revealed ? 'revealed' : outcome.result} />
-            <Button variant="primary" className="ml-auto" loading={busy} onClick={moveOn}>
-              Next <Kbd tone="on-accent">Enter</Kbd>
-            </Button>
-          </>
-        )}
+          ) : (
+            flagged && (
+              <Button variant="ghost" className={rowButton} disabled={busy} title="Move on without answering. No attempt is logged." onClick={moveOn}>
+                Skip
+              </Button>
+            )
+          )
+        }
+      >
+        {atEnd && chosen.length === 0 && <p className="text-sm text-ink-soft">Nothing selected, so Next skips this one.</p>}
+        {!atEnd && locked && <Verdict kind={revealed ? 'revealed' : outcome.result} />}
         {!atEnd && !locked && (
           <>
-            <Button variant="primary" disabled={chosen.length === 0} loading={busy} onClick={submit}>
+            <Button variant="primary" className={rowButton} disabled={chosen.length === 0} loading={busy} onClick={submit}>
               Submit {chosen.length > 0 && <Kbd tone="on-accent">Enter</Kbd>}
             </Button>
-            <Button disabled={busy} onClick={reveal}>
-              Reveal answer <Kbd>R</Kbd>
+            <Button className={rowButton} aria-label="Reveal answer" disabled={busy} onClick={reveal}>
+              Reveal<span className="max-sm:hidden"> answer</span> <Kbd>R</Kbd>
             </Button>
-            {flagged && (
-              <Button variant="ghost" className="ml-auto" disabled={busy} onClick={moveOn}>
-                Move on without answering
-              </Button>
-            )}
           </>
         )}
-      </div>
+      </QuizActions>
+
+      {flagged && (
+        <div className="mt-3">
+          <FlagReason
+            reason={question.flag?.reason ?? null}
+            busy={flagging.isPending}
+            onSaveReason={(reason) => flagging.mutate({ flag: true, reason })}
+          />
+        </div>
+      )}
     </QuestionCard>
   )
 }
@@ -266,29 +258,6 @@ function EndQuiz({ quizId }: { quizId: string }) {
   )
 }
 
-function Results({ quiz }: { quiz: QuizState }) {
-  const heading = useRef<HTMLHeadingElement>(null)
-  useEffect(() => heading.current?.focus(), [])
-
-  return (
-    <div className="mx-auto max-w-2xl rounded-lg border border-line bg-surface p-5 shadow-card sm:p-6">
-      <h1 ref={heading} tabIndex={-1} className="text-xl outline-none">
-        Quiz finished
-      </h1>
-      <p className="mb-4 text-sm break-words text-ink-soft">{quiz.exam}</p>
-      {quiz.results && <QuizScore results={quiz.results} />}
-      <p className="mt-4 text-sm text-ink-soft">
-        The full results, with Review answers and Retry missed, arrive in Stage 6. Until then, the{' '}
-        <Link to="/dev/data/attempts">attempts</Link> and <Link to="/dev/data/question_stats">question stats</Link> tables show
-        what was saved.
-      </p>
-      <Link to="/" className={`mt-5 ${buttonClass({ variant: 'primary' })}`}>
-        Back to home
-      </Link>
-    </div>
-  )
-}
-
 export function QuizPage() {
   const { id = '' } = useParams()
 
@@ -321,7 +290,7 @@ export function QuizPage() {
   }
 
   const state: QuizState = quiz.data
-  if (state.finished || !state.current) return <Results quiz={state} />
+  if (state.finished || !state.current) return <QuizResults quiz={state} />
 
   return (
     <div>

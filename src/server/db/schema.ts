@@ -86,6 +86,8 @@ export const userExams = sqliteTable(
     examDate: text('exam_date'),
     // Set when the user marks the real exam as passed.
     passedAt: timestamp('passed_at'),
+    // Set when the user stops studying for an exam without passing it. It moves to the bottom of home.
+    abandonedAt: timestamp('abandoned_at'),
   },
   (t) => [primaryKey({ columns: [t.userId, t.examId] })],
 )

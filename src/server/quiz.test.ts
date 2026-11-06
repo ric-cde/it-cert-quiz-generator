@@ -4,7 +4,7 @@ import type { QuizState } from '../shared/quiz'
 import { createApi } from './app'
 import { commitImport } from './bank-import'
 import { type Db, openDb } from './db'
-import { attempts, options, questions, questionStats, quizzes } from './db/schema'
+import { attempts, options, questions, questionStats, quizzes, sources } from './db/schema'
 import { resolveReview } from './review'
 
 const EXAM = 'OutSystems Associate Developer (O11)'
@@ -45,6 +45,7 @@ describe('quizzes', () => {
   let db: Db
   let app: ReturnType<typeof createApi>
   let sourceId: number
+  let examId: number
 
   const send = (method: string, path: string, body?: unknown) =>
     app.request(path, {
@@ -54,7 +55,7 @@ describe('quizzes', () => {
     })
 
   async function start(feedback: 'after_each' | 'at_end' = 'after_each', extra: object = {}) {
-    const res = await send('POST', '/api/quizzes', { sourceId, feedback, ...extra })
+    const res = await send('POST', '/api/quizzes', { examId, sourceIds: [sourceId], feedback, ...extra })
     expect(res.status).toBe(201)
     return ((await res.json()) as { id: number }).id
   }
@@ -76,6 +77,7 @@ describe('quizzes', () => {
     const result = commitImport(db, bank([single(1), single(2), single(3)]))
     if (!result.ok) throw new Error('import failed')
     sourceId = result.sourceId
+    examId = db.select().from(sources).where(eq(sources.id, sourceId)).get()!.examId
   })
 
   describe('starting', () => {
@@ -83,7 +85,12 @@ describe('quizzes', () => {
       const id = await start()
       const row = db.select().from(quizzes).where(eq(quizzes.id, id)).get()!
       expect([...row.questionIds].sort()).toEqual(db.select().from(questions).all().map((q) => q.id).sort())
-      expect(row).toMatchObject({ mode: 'study', position: 0, finishedAt: null, config: { feedback: 'after_each', sourceId } })
+      expect(row).toMatchObject({
+        mode: 'study',
+        position: 0,
+        finishedAt: null,
+        config: { feedback: 'after_each', selection: { sourceIds: [sourceId], status: 'all' } },
+      })
     })
 
     it('can be capped', async () => {
@@ -110,27 +117,27 @@ describe('quizzes', () => {
       expect(kept.map((q) => q.externalId).sort()).toEqual(['q3', 'q4'])
     })
 
-    it('refuses a source with nothing to ask, or that does not exist', async () => {
+    it('refuses a selection with nothing to ask, or an exam that does not exist', async () => {
       db.update(questions).set({ flaggedAt: new Date() }).run()
-      expect((await send('POST', '/api/quizzes', { sourceId, feedback: 'at_end' })).status).toBe(409)
-      expect((await send('POST', '/api/quizzes', { sourceId: 999, feedback: 'at_end' })).status).toBe(404)
+      expect((await send('POST', '/api/quizzes', { examId, feedback: 'at_end' })).status).toBe(409)
+      expect((await send('POST', '/api/quizzes', { examId: 999, feedback: 'at_end' })).status).toBe(404)
     })
 
     it('validates the body', async () => {
-      expect((await send('POST', '/api/quizzes', { sourceId, feedback: 'whenever' })).status).toBe(400)
+      expect((await send('POST', '/api/quizzes', { examId, feedback: 'whenever' })).status).toBe(400)
+      expect((await send('POST', '/api/quizzes', { examId, feedback: 'at_end', status: 'sometimes' })).status).toBe(400)
+      expect((await send('POST', '/api/quizzes', { sourceId, feedback: 'at_end' })).status).toBe(400)
     })
 
-    it('lists what can be started and what is unfinished', async () => {
+    it('lists unfinished quizzes on the home page, until they finish', async () => {
       const id = await start('at_end')
-      const res = (await (await send('GET', '/api/quizzes/start-options')).json()) as {
-        sources: unknown[]
-        unfinished: unknown[]
-      }
-      expect(res.sources).toEqual([{ id: sourceId, exam: EXAM, name: 'Quiz source', available: 3 }])
-      expect(res.unfinished).toEqual([{ id, exam: EXAM, source: 'Quiz source', feedback: 'at_end', position: 0, total: 3 }])
+      const home = (await (await send('GET', '/api/home')).json()) as { unfinished: unknown[] }
+      expect(home.unfinished).toEqual([
+        { id, exam: EXAM, label: 'Quiz source', feedback: 'at_end', position: 0, total: 3, startedAt: expect.stringMatching(/^\d{4}-/) },
+      ])
 
       await act(id, 'finish')
-      const later = (await (await send('GET', '/api/quizzes/start-options')).json()) as { unfinished: unknown[] }
+      const later = (await (await send('GET', '/api/home')).json()) as { unfinished: unknown[] }
       expect(later.unfinished).toEqual([])
     })
   })
@@ -524,6 +531,102 @@ describe('quizzes', () => {
         current: null,
         results: { correct: 0, incorrect: 0, revealed: 0, skipped: 0, notReached: 0 },
       })
+    })
+  })
+
+  describe('results', () => {
+    /** Answers each question by its prefix: Right, Wrong, reveal, or skip (at-the-end only). */
+    async function play(id: number, moves: ('Right' | 'Wrong' | 'reveal' | 'skip')[]) {
+      for (const move of moves) {
+        const now = await state(id)
+        const questionId = now.current!.id
+        if (move === 'reveal') await act(id, 'reveal', { questionId })
+        else if (move === 'skip') await act(id, 'next', { questionId })
+        else await act(id, 'answer', answer(now, move))
+        if (now.feedback === 'after_each' && move !== 'skip') await act(id, 'next', { questionId })
+      }
+      return state(id)
+    }
+
+    it('breaks the score down by category, weakest first, and counts what Retry missed would ask', async () => {
+      commitImport(db, bank([single(4, { category: 'Data' })]))
+      const id = await start('after_each', { sourceIds: [sourceId] })
+      const quiz = db.select().from(quizzes).where(eq(quizzes.id, id)).get()!
+      const dataId = db.select().from(questions).where(eq(questions.externalId, 'q4')).get()!.id
+      // Data is answered right, so whatever else happens Logic is the weaker.
+      const moves = quiz.questionIds.map((qid, index) => (qid === dataId ? 'Right' : index % 2 ? 'reveal' : 'Wrong'))
+      const done = await play(id, moves as ('Right' | 'reveal' | 'Wrong')[])
+
+      expect(done.summary).toEqual({
+        byCategory: [
+          { name: 'Logic', correct: 0, asked: 3 },
+          { name: 'Data', correct: 1, asked: 1 },
+        ],
+        missed: 3,
+        examId,
+        label: 'Quiz source',
+      })
+    })
+
+    it('has no summary while the quiz is still going', async () => {
+      expect((await state(await start())).summary).toBeNull()
+    })
+
+    it('retries the incorrect, revealed and skipped questions, but not ones never reached', async () => {
+      commitImport(db, bank([single(4), single(5)]))
+      const id = await start('at_end')
+      await play(id, ['Right', 'Wrong', 'skip'])
+      await act(id, 'finish')
+      const quiz = db.select().from(quizzes).where(eq(quizzes.id, id)).get()!
+
+      const res = await send('POST', `/api/quizzes/${id}/retry`)
+      expect(res.status).toBe(201)
+      const retry = db.select().from(quizzes).where(eq(quizzes.id, ((await res.json()) as { id: number }).id)).get()!
+      expect([...retry.questionIds].sort()).toEqual(quiz.questionIds.slice(1, 3).sort())
+      expect(retry.config).toMatchObject({ feedback: 'at_end', retryOf: id })
+      const home = (await (await send('GET', '/api/home')).json()) as { unfinished: { label: string }[] }
+      expect(home.unfinished[0]!.label).toBe('Retry missed: Quiz source')
+    })
+
+    it('leaves questions flagged since out of a retry, and refuses one with nothing to ask', async () => {
+      const id = await start()
+      expect((await send('POST', `/api/quizzes/${id}/retry`)).status).toBe(409)
+
+      const done = await play(id, ['Wrong', 'Right', 'Right'])
+      expect(done.summary!.missed).toBe(1)
+      const missedId = db.select().from(attempts).where(eq(attempts.result, 'incorrect')).get()!.questionId
+      db.update(questions).set({ flaggedAt: new Date() }).where(eq(questions.id, missedId)).run()
+
+      expect((await state(id)).summary!.missed).toBe(0)
+      expect((await send('POST', `/api/quizzes/${id}/retry`)).status).toBe(409)
+      expect((await send('POST', '/api/quizzes/999/retry')).status).toBe(404)
+    })
+
+    it('reviews every answer in order, with options as shown, marking skips and leaving out what was never reached', async () => {
+      commitImport(db, bank([single(4)]))
+      const id = await start('at_end')
+      const shown = (await state(id)).current!.options.map((option) => option.id)
+      await play(id, ['Wrong', 'skip'])
+      await act(id, 'finish')
+
+      const res = await send('GET', `/api/quizzes/${id}/review`)
+      expect(res.status).toBe(200)
+      const entries = (await res.json()) as import('../shared/quiz').ReviewEntry[]
+      expect(entries.map((entry) => [entry.number, entry.outcome])).toEqual([
+        [1, 'incorrect'],
+        [2, 'skipped'],
+      ])
+      expect(entries[0]!.options.map((option) => option.id)).toEqual(shown)
+      const chosen = entries[0]!.options.find((option) => option.chosen)!
+      expect(chosen).toMatchObject({ isCorrect: false, explanationMd: expect.stringMatching(/^Why wrong/) })
+      expect(entries[0]!.category).toBe('Logic')
+      expect(entries[1]!.options.every((option) => !option.chosen)).toBe(true)
+    })
+
+    it('reviews only finished quizzes', async () => {
+      const id = await start()
+      expect((await send('GET', `/api/quizzes/${id}/review`)).status).toBe(409)
+      expect((await send('GET', '/api/quizzes/999/review')).status).toBe(404)
     })
   })
 })

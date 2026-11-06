@@ -1,0 +1,1 @@
+ALTER TABLE `user_exams` ADD `abandoned_at` integer;

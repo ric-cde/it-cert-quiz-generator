@@ -89,7 +89,7 @@ Add category accuracy with links to practise weak areas, exam date countdown, re
 **You review:** whether the readiness figure seems believable against what you feel you know.
 
 ### 10. AI explanations
-Set up the shared Claude client, per-feature model config and usage logging. Add the Generate explanation button using Opus 5.5 with web search, showing sources. One call writes the missing per-answer text for every option on a question, and it's stored with the question. Generated text appears in place of that button, alongside Generate new explanation. Calls only happen when you press a button.
+Set up the shared Claude client, per-feature model config and usage logging. Add the Generate explanation button using Opus 5.5 with web search, showing sources. One call writes the missing per-answer text for every option on a question, and it's stored with the question. Generated text appears in place of that button, alongside Generate new explanation. Calls only happen when you press a button. Explain (ask about the question in your own words) and Hint, both icon-only on the question card, come with the AI features too; their short system prompts are reviewed first.
 
 **You review:** the quality of the per-answer text and the cost per question, and confirm that no API calls happen without a button press.
 

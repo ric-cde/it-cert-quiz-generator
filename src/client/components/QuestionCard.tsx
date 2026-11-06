@@ -2,8 +2,7 @@ import clsx from 'clsx'
 import type { ReactNode } from 'react'
 
 /**
- * The card around a question. Actions about the question itself, such as Flag, sit in a footer
- * at the bottom, away from Next. After a reveal the whole card shifts to a slightly different
+ * The card around a question, with an optional footer below a rule. After a reveal the whole card shifts to a slightly different
  * background, so it can't be mistaken for an answer you got right.
  */
 export function QuestionCard({
