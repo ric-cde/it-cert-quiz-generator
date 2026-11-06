@@ -1,13 +1,22 @@
 <#
-  Builds and runs a stable copy of the last commit on main, in ..\quiz-stable, so you can use the
-  app while work goes on in this folder. It shares the dev database (data\dev), so your answers
-  and imports show up in both.
+  Builds the app into ..\quiz-stable and runs it there on port 3200, so you can use it while work
+  goes on in this folder. Only what the built app needs goes there: the frontend, the server, the
+  database migrations and .env. It shares this project's packages through a folder link, and the
+  dev database (data\dev), so your answers and imports show up in both.
 
-  Run it from anywhere: powershell -ExecutionPolicy Bypass -File scripts\build-stable.ps1
-  Then open http://localhost:3200. Run it again to update to the latest commit.
+    npm run build-stable    Build what's in this folder now, then run it in this terminal.
+    npm run start-stable    Run the last build again, without building. Also: ..\quiz-stable\start-stable.cmd
+    Ctrl+C stops it.
+
+  /build-stable in Claude Code commits, then runs this with -NoStart: it stops the copy that's
+  running and builds, and you start it again with npm run start-stable.
 #>
 param(
-  [int]$Port = 3200
+  [int]$Port = 3200,
+  # Build, but don't start it.
+  [switch]$NoStart,
+  # Start the last build, without building.
+  [switch]$StartOnly
 )
 $ErrorActionPreference = 'Stop'
 
@@ -17,62 +26,73 @@ $dataDir = Join-Path $repo 'data\dev'
 
 function Step($text) { Write-Host "==> $text" }
 
-# 1. Stop the copy that's running, so its files aren't locked while they're replaced.
-$listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-foreach ($owner in ($listening | Select-Object -ExpandProperty OwningProcess -Unique)) {
-  Step "Stopping the running stable copy (process $owner)"
-  Stop-Process -Id $owner -Force
+function Stop-Stable {
+  $listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+  foreach ($owner in ($listening | Select-Object -ExpandProperty OwningProcess -Unique)) {
+    Step "Stopping the stable copy that's running (process $owner)"
+    Stop-Process -Id $owner -Force
+  }
+  if ($listening) { Start-Sleep -Seconds 1 }
 }
-if ($listening) { Start-Sleep -Seconds 1 }
 
-# 2. Check out the latest commit on main. Detached, because main is already checked out here.
-if (-not (Test-Path (Join-Path $stable '.git'))) {
-  Step "Creating $stable from main"
-  git -C $repo worktree add --detach $stable main
-} else {
-  Step "Updating $stable to the latest commit on main"
-  git -C $stable checkout --detach --force main
+function Build-Stable {
+  $commit = git -C $repo log -1 --format='%h %s'
+  $dirty = git -C $repo status --porcelain
+  Step "Building $commit$(if ($dirty) { ', plus uncommitted changes' })"
+
+  # The frontend and the server, straight into the stable folder.
+  New-Item -ItemType Directory -Force $stable | Out-Null
+  Push-Location $repo
+  try {
+    $env:VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
+    npx vite build --outDir (Join-Path $stable 'dist\client') --emptyOutDir --logLevel error
+    if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
+    npx esbuild src/server/index.ts --bundle --platform=node --format=esm --packages=external --log-level=warning `
+      "--outfile=$(Join-Path $stable 'dist\server\index.js')"
+    if ($LASTEXITCODE -ne 0) { throw 'server build failed' }
+  } finally {
+    Pop-Location
+  }
+
+  # What the server reads at run time: migrations, the module type from package.json, and the API key.
+  Remove-Item -Recurse -Force (Join-Path $stable 'drizzle') -ErrorAction SilentlyContinue
+  Copy-Item -Recurse (Join-Path $repo 'drizzle') (Join-Path $stable 'drizzle')
+  Copy-Item (Join-Path $repo 'package.json') $stable -Force
+  if (Test-Path (Join-Path $repo '.env')) { Copy-Item (Join-Path $repo '.env') $stable -Force }
+  Set-Content (Join-Path $stable 'BUILT-FROM.txt') "$commit$(if ($dirty) { ' (plus uncommitted changes)' })`r`nBuilt $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+
+  # The packages: a link to this project's, rather than a second install.
+  $modules = Join-Path $stable 'node_modules'
+  if (-not (Test-Path $modules)) {
+    New-Item -ItemType Junction -Path $modules -Target (Join-Path $repo 'node_modules') | Out-Null
+  }
+
+  # For starting it by double-clicking, too.
+  Set-Content (Join-Path $stable 'start-stable.cmd') @"
+@echo off
+cd /d "%~dp0"
+set PORT=$Port
+set DATA_DIR=$dataDir
+node dist\server\index.js
+"@
+  Step 'Built'
 }
-if ($LASTEXITCODE -ne 0) { throw 'git failed' }
-git -C $stable log -1 --format='    %h %s'
 
-# The API key, for features that call Claude. It's never committed, so copy it across.
-if (Test-Path (Join-Path $repo '.env')) { Copy-Item (Join-Path $repo '.env') (Join-Path $stable '.env') -Force }
+Stop-Stable
+if (-not $StartOnly) { Build-Stable }
+if ($NoStart) {
+  Step 'Start it with: npm run start-stable'
+  exit 0
+}
 
+if (-not (Test-Path (Join-Path $stable 'dist\server\index.js'))) { throw 'Nothing built yet. Run npm run build-stable first.' }
+Get-Content (Join-Path $stable 'BUILT-FROM.txt') -TotalCount 1 | ForEach-Object { Step "Running $_" }
+Step "Open http://localhost:$Port  (Ctrl+C stops it)"
 Push-Location $stable
 try {
-  # 3. Install packages, but only when the lock file has changed since the last install.
-  $lockHash = (Get-FileHash 'package-lock.json').Hash
-  $stamp = 'node_modules\.stable-lock-hash'
-  if (-not (Test-Path $stamp) -or (Get-Content $stamp) -ne $lockHash) {
-    Step 'Installing packages'
-    npm ci --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
-    Set-Content $stamp $lockHash
-  } else {
-    Step 'Packages are up to date'
-  }
-
-  # 4. Build.
-  Step 'Building'
-  npm run build
-  if ($LASTEXITCODE -ne 0) { throw 'build failed' }
-
-  # 5. Start it in its own hidden process, so it keeps running after this script ends.
-  Step "Starting on port $Port with the database in $dataDir"
   $env:PORT = "$Port"
   $env:DATA_DIR = $dataDir
-  Start-Process node -ArgumentList 'dist/server/index.js' -WorkingDirectory $stable -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $stable 'stable.log') -RedirectStandardError (Join-Path $stable 'stable-error.log')
-
-  for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
-      Step "Ready: http://localhost:$Port"
-      exit 0
-    }
-  }
-  throw "It didn't start. See $stable\stable-error.log"
+  node dist\server\index.js
 } finally {
   Pop-Location
 }

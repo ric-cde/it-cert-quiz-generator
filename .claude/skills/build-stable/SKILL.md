@@ -1,6 +1,6 @@
 ---
 name: build-stable
-description: Commit the current changes, then rebuild and restart the stable copy of the app in ..\quiz-stable on port 3200, in the background.
+description: Commit the current changes, then build the app into ..\quiz-stable, for the user to run with npm run start-stable.
 disable-model-invocation: true
 argument-hint: "[commit message] [push]"
 ---
@@ -20,12 +20,11 @@ Arguments: $ARGUMENTS
      this conversation. End it with the attribution lines the session asks for.
    - If the arguments include `push`, run `git push`.
    - Don't run the tests here. They're run after every change anyway.
-2. **Build and start the stable copy.** Run this with the Bash tool's `run_in_background`, so the
-   user can carry on meanwhile:
-   `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-stable.ps1`
-   It stops the running copy, moves `..\quiz-stable` to the latest commit on main, installs
-   packages if the lock file changed, builds, and starts the server on port 3200 using the dev
-   database (`data\dev`).
+2. **Build the stable copy.** Run
+   `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-stable.ps1 -NoStart`
+   in the foreground (about 30 seconds). It stops the stable copy if it's running, then builds the
+   frontend and server from this folder straight into `..\quiz-stable`. It doesn't start it: the
+   user runs it in their own terminal.
 3. **Report** in a line or two: the commit hash and message (or that there was nothing to commit),
-   and that the build is running. When the background job finishes, say whether it's ready at
-   http://localhost:3200, or quote the error.
+   whether the build worked (quote the error if not), and that `npm run start-stable` starts it
+   at http://localhost:3200.
