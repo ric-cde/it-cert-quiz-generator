@@ -1,4 +1,5 @@
-import { isRandom, type ProgressCounts, type Selection, type Status } from './selection'
+import type { QuizSort } from './domain'
+import { isRandom, type ProgressCounts, type Selection, type Status, STATUSES } from './selection'
 
 /**
  * Choosing questions, shared by the server and the take-exam screen. The screen loads an exam's
@@ -160,6 +161,8 @@ export type PracticeView = {
   sources: (TileView & { chapters: TileView[] })[]
   /** The "y" in "x of y available". */
   available: number
+  /** What each status would give for the tiles picked now, whichever status is on. */
+  statusCounts: Record<Status, number>
 }
 
 /**
@@ -202,5 +205,45 @@ export function practiceView(data: PracticeData, pool: Pool, selection: Selectio
         .map((chapter) => tile(chapter.id, chapter.name, (q) => q.chapterId === chapter.id, byCategory)),
     })),
     available: selectQuestions(pool, selection).length,
+    statusCounts: Object.fromEntries(
+      STATUSES.map((status) => [status, selectQuestions(pool, { ...selection, status }).length]),
+    ) as Record<Status, number>,
   }
+}
+
+/* ---------- The questions a quiz will get, by how you've done on them ---------- */
+
+/** The same three groups as the progress bars. Right once and wrong since counts as incorrect. */
+export type QuizMix = { correct: number; incorrect: number; unanswered: number }
+
+const MIX_PARTS = ['correct', 'incorrect', 'unanswered'] as const
+
+function mixOf(questions: readonly PoolQuestion[]): QuizMix {
+  const { correct, incorrect, total } = progressOf(questions)
+  return { correct, incorrect, unanswered: total - correct - incorrect }
+}
+
+/**
+ * How the questions a quiz will get split by status. In source order the cap takes the first ones,
+ * so that's exact. A random quiz shuffles before capping, so which ones it gets isn't known until it
+ * starts: the cap is shared out in proportion instead, with the largest remainders rounding up.
+ */
+export function quizMix(pool: Pool, ids: readonly number[], limit: number | undefined, sort: QuizSort): QuizMix {
+  const byId = new Map(pool.questions.map((question) => [question.id, question]))
+  const questions = ids.map((id) => byId.get(id)).filter((question) => question !== undefined)
+  if (limit === undefined || limit >= questions.length) return mixOf(questions)
+  if (sort === 'source') return mixOf(questions.slice(0, Math.max(limit, 0)))
+
+  const whole = mixOf(questions)
+  const shares = MIX_PARTS.map((part) => (whole[part] * limit) / questions.length)
+  const mix: QuizMix = { correct: 0, incorrect: 0, unanswered: 0 }
+  MIX_PARTS.forEach((part, index) => (mix[part] = Math.floor(shares[index]!)))
+  let left = limit - MIX_PARTS.reduce((sum, part) => sum + mix[part], 0)
+  const byRemainder = MIX_PARTS.map((part, index) => ({ part, rest: shares[index]! - mix[part] })).sort((a, b) => b.rest - a.rest)
+  for (const { part } of byRemainder) {
+    if (left <= 0) break
+    mix[part] += 1
+    left -= 1
+  }
+  return mix
 }

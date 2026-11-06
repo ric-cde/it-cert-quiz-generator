@@ -269,6 +269,24 @@ describe('TakeExamPage', () => {
     expect(screen.getByRole('button', { name: /^Empty/ }).querySelector('[data-checkbox]')).toBeNull()
   })
 
+  it('shows on each status how many questions it would give for the tiles picked', async () => {
+    renderPage('/exam/2?chapters=70')
+    await loaded()
+    expect(screen.getByRole('radio', { name: 'All' })).toHaveAccessibleDescription('27 questions')
+    expect(screen.getByRole('radio', { name: 'Unanswered' })).toHaveAccessibleDescription('25 questions')
+    expect(screen.getByRole('radio', { name: 'Incorrect' })).toHaveAccessibleDescription('2 questions')
+    expect(screen.getByRole('radio', { name: 'Unsolved' })).toHaveAccessibleDescription('27 questions')
+  })
+
+  it('colours the strip by how you have done on the questions', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage('/exam/2?status=all')
+    await loaded()
+    await user.click(screen.getByRole('radio', { name: 'Max' }))
+    const parts = (status: string) => container.querySelectorAll(`[data-question="${status}"]`).length
+    expect([parts('correct'), parts('incorrect'), parts('unanswered')]).toEqual([5, 2, 30])
+  })
+
   it('lets you clear the number field and type a new number', async () => {
     const user = userEvent.setup()
     renderPage()

@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { RadioGroup, Switch as RadixSwitch } from 'radix-ui'
 import type { ReactNode, Ref } from 'react'
+import type { QuizMix } from '../../shared/practice'
 import { useId, useState } from 'react'
 import { Button } from './Button'
 import { Kbd } from './Kbd'
@@ -39,10 +40,12 @@ export function Segmented<T extends string>({
 }: {
   label: string
   value: T
-  options: readonly { value: T; label: string }[]
+  /** `count` puts a small count in the option's top-right corner, read out as its description. */
+  options: readonly { value: T; label: string; count?: number }[]
   onChange?: (value: T) => void
   disabled?: boolean
 }) {
+  const id = useId()
   return (
     <RadioGroup.Root
       aria-label={label}
@@ -55,17 +58,37 @@ export function Segmented<T extends string>({
         <RadioGroup.Item
           key={option.value}
           value={option.value}
+          // The count is its description, not part of its name.
+          aria-label={option.count === undefined ? undefined : option.label}
+          aria-describedby={option.count === undefined ? undefined : `${id}-${option.value}`}
           className={clsx(
-            'min-h-8 cursor-pointer rounded-sm px-3 text-sm font-medium transition-colors duration-100',
+            'group min-h-8 cursor-pointer rounded-sm px-3 text-sm font-medium transition-colors duration-100',
             'data-[state=checked]:bg-surface data-[state=checked]:font-semibold data-[state=checked]:text-accent-strong data-[state=checked]:shadow-raised',
             'data-[state=unchecked]:text-ink-soft data-[state=unchecked]:hover:text-ink',
             'disabled:cursor-not-allowed disabled:opacity-60',
           )}
         >
           {option.label}
+          {option.count !== undefined && <CountBubble id={`${id}-${option.value}`} count={option.count} />}
         </RadioGroup.Item>
       ))}
     </RadioGroup.Root>
+  )
+}
+
+/** A small count, raised to the top right of the word before it. Accent when its option is picked. */
+function CountBubble({ id, count }: { id: string; count: number }) {
+  return (
+    <span
+      id={id}
+      className={clsx(
+        'ml-1 inline-flex h-4 min-w-4 -translate-y-1.5 items-center justify-center rounded-full px-1 align-middle text-[0.625rem] leading-none font-semibold tabular-nums',
+        'bg-line text-ink-soft group-data-[state=checked]:bg-accent group-data-[state=checked]:text-on-accent',
+      )}
+    >
+      <span aria-hidden="true">{count}</span>
+      <span className="sr-only">{`${count} ${count === 1 ? 'question' : 'questions'}`}</span>
+    </span>
   )
 }
 
@@ -172,17 +195,31 @@ export function MaxQuestionsPicker({
 /** Beyond this many, the strip would be a wall, so it stops adding rectangles. */
 export const MAX_STRIP = 500
 
+type StripPart = keyof QuizMix | 'selected'
+const STRIP_COLOUR: Record<StripPart, string> = {
+  correct: 'bg-correct',
+  incorrect: 'bg-amber',
+  unanswered: 'bg-line-strong',
+  selected: 'bg-accent',
+}
+
 /**
  * One rectangle for each question the quiz will ask. Few questions stretch to fill the width, and
- * many keep a minimum width and wrap onto more lines.
+ * many keep a minimum width and wrap onto more lines. Given the mix, they're coloured as the
+ * progress bars are, green then yellow then grey. Otherwise they're all accent.
  */
-export function SelectionStrip({ count }: { count: number }) {
-  const shown = Math.min(Math.max(count, 0), MAX_STRIP)
+export function SelectionStrip({ count, mix }: { count: number; mix?: QuizMix }) {
+  const parts: StripPart[] = mix
+    ? (['correct', 'incorrect', 'unanswered'] as const).flatMap((part) => Array<StripPart>(Math.max(mix[part], 0)).fill(part))
+    : Array<StripPart>(Math.max(count, 0)).fill('selected')
+  const shown = Math.min(parts.length, MAX_STRIP)
   return (
     <div aria-hidden="true" className="grid grid-cols-[repeat(auto-fit,minmax(6px,1fr))] gap-[3px]">
-      {Array.from({ length: shown }, (_, index) => (
-        <span key={index} data-question className="h-2 rounded-[2px] bg-accent" />
-      ))}
+      {Array.from({ length: shown }, (_, index) => {
+        // Past the limit, every so many stands for the rest, so the colours keep their share.
+        const part = parts[Math.floor((index * parts.length) / shown)]!
+        return <span key={index} data-question={part} className={clsx('h-3.5 rounded-[2px]', STRIP_COLOUR[part])} />
+      })}
     </div>
   )
 }
@@ -195,6 +232,7 @@ export function LiveCount({
   onStart,
   bar = false,
   shortcut,
+  mix,
 }: {
   selected: number
   available: number
@@ -207,6 +245,8 @@ export function LiveCount({
   bar?: boolean
   /** The key that starts the quiz, shown on the button. */
   shortcut?: string
+  /** How the questions split by status, to colour the strip. */
+  mix?: QuizMix
 }) {
   const none = available === 0
   return (
@@ -224,20 +264,22 @@ export function LiveCount({
             : 'flex flex-wrap items-center justify-between gap-3 px-4 py-3'
         }
       >
-      <p aria-live="polite" aria-busy={loading} className="flex items-baseline gap-1.5 text-ink-soft">
+      <p aria-live="polite" aria-busy={loading} className="flex items-baseline gap-2 text-lg text-ink-soft">
         {none ? (
           <span className="font-semibold">No questions match</span>
         ) : (
           <>
-            <span className="text-xl font-bold tabular-nums text-ink">{selected}</span>
-            <span className="tabular-nums">of {available} available</span>
+            <span className="text-4xl leading-none font-extrabold tracking-tight tabular-nums text-accent-strong">
+              {selected}
+            </span>
+            <span className="font-medium tabular-nums">of {available} available</span>
             {loading && <Spinner className="size-3.5 self-center" />}
           </>
         )}
       </p>
       {bar && !none && (
         <div className="order-last basis-full sm:order-none sm:min-w-0 sm:flex-1 sm:basis-0">
-          <SelectionStrip count={selected} />
+          <SelectionStrip count={selected} mix={mix} />
         </div>
       )}
       <Button variant="primary" disabled={none || loading} onClick={onStart} className={clsx(bar && 'sm:px-8')}>

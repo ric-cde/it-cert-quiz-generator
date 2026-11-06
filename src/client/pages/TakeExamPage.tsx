@@ -20,7 +20,7 @@ import { FEEDBACK_NAMES, SORT_OPTIONS, STATUS_OPTIONS } from '@/lib/quiz-words'
 import { readChoices, saveChoices, type TakeExamChoices } from '@/lib/remembered'
 import { isForShortcuts } from '@/lib/shortcuts'
 import { DEFAULT_QUIZ_DEFAULTS, type Feedback, FEEDBACK_MODES, type QuizSort } from '../../shared/domain'
-import { buildPool, practiceView } from '../../shared/practice'
+import { buildPool, practiceView, quizMix, selectQuestions } from '../../shared/practice'
 import { isRandom, type Selection, type Status, STATUSES } from '../../shared/selection'
 
 /* ---------- The selection lives in the address, so Back and links (such as from home) keep it ---------- */
@@ -140,6 +140,11 @@ export function TakeExamPage() {
   }
 
   const selected = view ? (max === 'max' ? view.available : Math.min(max, view.available)) : 0
+  const mix = useMemo(
+    () => (pool ? quizMix(pool, selectQuestions(pool, selection), max === 'max' ? undefined : max, sort) : undefined),
+    [pool, selectionKey, max, sort],
+  )
+  const statusOptions = STATUS_OPTIONS.map((option) => ({ ...option, count: view?.statusCounts[option.value] }))
   const canStart = view !== null && view.available > 0 && !start.isPending
 
   // Enter starts, R picks Random, S moves through the status options, and M through Max questions.
@@ -214,7 +219,7 @@ export function TakeExamPage() {
           <section aria-label="Options">
             <FilterPanel>
               <FilterField label="Status" shortcut="S">
-                <Segmented label="Status" value={selection.status} options={STATUS_OPTIONS} onChange={(status) => change({ status })} />
+                <Segmented label="Status" value={selection.status} options={statusOptions} onChange={(status) => change({ status })} />
               </FilterField>
               <FilterField label="Max questions" shortcut="M">
                 <MaxQuestionsPicker value={max} inputRef={otherBox} onChange={(value) => choose({ max: value })} />
@@ -325,6 +330,7 @@ export function TakeExamPage() {
               shortcut="Enter"
               selected={selected}
               available={view.available}
+              mix={mix}
               loading={start.isPending}
               onStart={() => start.mutate()}
             />

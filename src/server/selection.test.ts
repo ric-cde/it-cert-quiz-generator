@@ -8,6 +8,7 @@ import {
   type PoolQuestion,
   type PracticeData,
   practiceView,
+  quizMix,
   selectQuestions,
 } from '../shared/practice'
 import { type SelectionInput, selectionSchema, type Status } from '../shared/selection'
@@ -150,6 +151,34 @@ describe('practiceView', () => {
   it('agrees with the questions a quiz would get', () => {
     const selection = { categoryIds: [1], chapterIds: [11, 21] }
     expect(view(selection).available).toBe(pick(selection).length)
+  })
+
+  it('counts what each status would give for the tiles picked, whichever status is on', () => {
+    expect(view({ status: 'incorrect' }).statusCounts).toEqual({ all: 6, unanswered: 2, incorrect: 2, unsolved: 3 })
+    expect(view({ sourceIds: [1] }).statusCounts).toEqual({ all: 4, unanswered: 1, incorrect: 2, unsolved: 2 })
+  })
+})
+
+describe('quizMix', () => {
+  const ids = (input: SelectionInput) => pick(input)
+
+  it('counts every question when the quiz takes them all', () => {
+    expect(quizMix(pool, ids({}), undefined, 'random')).toEqual({ correct: 2, incorrect: 2, unanswered: 2 })
+    expect(quizMix(pool, ids({}), 10, 'source')).toEqual({ correct: 2, incorrect: 2, unanswered: 2 })
+  })
+
+  it('takes the first ones in source order', () => {
+    // Questions 1, 2 and 3: unanswered, correct, then right once and wrong since.
+    expect(quizMix(pool, ids({}), 3, 'source')).toEqual({ correct: 1, incorrect: 1, unanswered: 1 })
+    expect(quizMix(pool, ids({}), 1, 'source')).toEqual({ correct: 0, incorrect: 0, unanswered: 1 })
+  })
+
+  it('shares out a capped random quiz in proportion, adding up to the cap', () => {
+    // Two unanswered and one incorrect, capped at two.
+    expect(quizMix(pool, ids({ status: 'unsolved' }), 2, 'random')).toEqual({ correct: 0, incorrect: 1, unanswered: 1 })
+    const mix = quizMix(pool, ids({}), 4, 'random')
+    expect(mix.correct + mix.incorrect + mix.unanswered).toBe(4)
+    for (const part of Object.values(mix)) expect(part === 1 || part === 2).toBe(true)
   })
 })
 

@@ -610,7 +610,19 @@ function Filters() {
       </Specimen>
       <SpecimenGrid>
         <Specimen label="Live count as the bar along the bottom of the take-exam screen" className="col-span-full">
-          <LiveCount selected={20} available={137} bar />
+          <LiveCount selected={20} available={137} bar mix={{ correct: 4, incorrect: 3, unanswered: 13 }} />
+        </Specimen>
+        <Specimen label="Status with a count on each option" className="col-span-full">
+          <Segmented
+            label="Status with counts"
+            value="unanswered"
+            options={[
+              { value: 'all', label: 'All', count: 137 },
+              { value: 'unanswered', label: 'Unanswered', count: 88 },
+              { value: 'incorrect', label: 'Incorrect', count: 21 },
+              { value: 'unsolved', label: 'Unsolved', count: 102 },
+            ]}
+          />
         </Specimen>
         <Specimen label="Live count, capped">
           <LiveCount selected={20} available={137} />
