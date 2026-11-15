@@ -18,7 +18,13 @@ export function countToReview(db: Pick<Db, 'select'>, sourceId: number) {
 /** Questions with a doubt nobody has looked at yet, optionally for one source. */
 export function listToReview(db: Db, sourceId?: number): QuestionToReview[] {
   const rows = db
-    .select({ question: questions, chapter: chapters.name, source: sources.name, sourceId: sources.id, exam: exams.name })
+    .select({
+      question: questions,
+      chapter: chapters.name,
+      source: sources.name,
+      sourceId: sources.id,
+      exam: exams.name,
+    })
     .from(questions)
     .innerJoin(chapters, eq(questions.chapterId, chapters.id))
     .innerJoin(sources, eq(chapters.sourceId, sources.id))
@@ -48,8 +54,9 @@ export function listToReview(db: Db, sourceId?: number): QuestionToReview[] {
     reviewNote: question.reviewNote!,
     options: optionRows
       .filter((option) => option.questionId === question.id)
-      .map(({ id, bodyMd, isCorrect, explanationMd, explanationOrigin }) => ({
+      .map(({ id, label, bodyMd, isCorrect, explanationMd, explanationOrigin }) => ({
         id,
+        label,
         bodyMd,
         isCorrect,
         explanationMd,

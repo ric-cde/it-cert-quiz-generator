@@ -1,0 +1,13 @@
+# Generated, vendored or data files, and prose (Markdown tables would be realigned).
+package-lock.json
+dist/
+data/
+drizzle/
+coverage/
+test-results/
+playwright-report/
+docs/
+skill/
+*.md
+src/client/icons/source-icon-art.generated.ts
+src/client/icons/exam-icon-art.generated.ts

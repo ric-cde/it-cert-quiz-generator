@@ -44,6 +44,8 @@ function renderApp(path: string) {
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<p>Home</p>} />
+            <Route path="exam/:id" element={<p>Take exam</p>} />
+            <Route path="quiz/:id" element={<p>Quiz</p>} />
             <Route path="dev/data/:table?" element={<DevDataPage />} />
           </Route>
         </Routes>
@@ -72,6 +74,19 @@ describe('footer links', () => {
     renderApp('/')
     expect(await screen.findByRole('link', { name: 'Data inspector' })).toHaveAttribute('href', '/dev/data')
     expect(screen.getByRole('link', { name: 'Component gallery' })).toHaveAttribute('href', '/dev/components')
+  })
+
+  it('shows them on the take-exam screen too', async () => {
+    renderApp('/exam/2')
+    expect(await screen.findByRole('link', { name: 'Data inspector' })).toBeInTheDocument()
+  })
+
+  it.each(['/quiz/9', '/dev/data'])('hides them on %s, even from an admin', async (path) => {
+    renderApp(path)
+    await vi.waitFor(() => expect(getMe).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(screen.queryByRole('link', { name: 'Data inspector' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Component gallery' })).not.toBeInTheDocument()
   })
 
   it('hides them from anyone else', async () => {

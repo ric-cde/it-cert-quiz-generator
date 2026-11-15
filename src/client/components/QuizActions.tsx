@@ -22,7 +22,11 @@ export function QuizActions({ children, tools, end }: { children?: ReactNode; to
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-2.5">{children}</div>
       <div className="flex items-center gap-1">{tools}</div>
       <div className="grid justify-items-end">
-        <span aria-hidden="true" inert className={clsx(buttonClass({ variant: 'primary' }), rowButton, 'invisible [grid-area:1/1]')}>
+        <span
+          aria-hidden="true"
+          inert
+          className={clsx(buttonClass({ variant: 'primary' }), rowButton, 'invisible [grid-area:1/1]')}
+        >
           Next <Kbd tone="on-accent">Enter</Kbd>
         </span>
         {end && <div className="flex [grid-area:1/1]">{end}</div>}

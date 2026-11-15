@@ -21,6 +21,8 @@ export const INSPECTOR_TABLES: SQLiteTable[] = [
   schema.quizzes,
   schema.attempts,
   schema.questionStats,
+  schema.questionStars,
+  schema.difficultyAdjustments,
   schema.drafts,
   schema.aiCalls,
   schema.settings,

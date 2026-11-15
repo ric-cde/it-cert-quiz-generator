@@ -4,10 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
-import { ComponentGalleryPage } from './ComponentGalleryPage'
+import { ComponentGalleryPage } from './gallery/ComponentGalleryPage'
+import { Tiles } from './gallery/sections/Tiles'
+import { TryIt } from './gallery/sections/TryIt'
 import { HomePage } from './HomePage'
 
-vi.mock('@/lib/highlight', () => ({ highlight: vi.fn(async () => null), resolveLanguage: (language?: string) => language }))
+vi.mock('@/lib/highlight', () => ({
+  highlight: vi.fn(async () => null),
+  resolveLanguage: (language?: string) => language,
+}))
 vi.mock('@/lib/settings', () => ({
   useSyntaxHighlighting: () => ({ enabled: true, ready: true, toggle: () => {} }),
 }))
@@ -40,16 +45,35 @@ const overview = {
         {
           id: 2,
           name: 'Associate Developer (O11)',
+          subject: 'OutSystems',
           status: 'active',
           progress: progress(3, 1, 10),
           sources: [{ id: 7, name: 'Practice exam', progress: progress(3, 1, 10) }],
         },
-        { id: 3, name: 'An empty exam', status: 'active', progress: progress(0, 0, 0), sources: [] },
+        {
+          id: 3,
+          name: 'An empty exam',
+          subject: 'OutSystems',
+          status: 'active',
+          progress: progress(0, 0, 0),
+          sources: [],
+        },
       ],
     },
   ],
-  passed: [{ id: 4, name: 'A passed exam', status: 'passed', progress: progress(9, 1, 10), sources: [] }],
-  abandoned: [{ id: 5, name: 'An abandoned exam', status: 'abandoned', progress: progress(1, 1, 10), sources: [] }],
+  passed: [
+    { id: 4, name: 'A passed exam', subject: 'Java', status: 'passed', progress: progress(9, 1, 10), sources: [] },
+  ],
+  abandoned: [
+    {
+      id: 5,
+      name: 'An abandoned exam',
+      subject: 'Claude',
+      status: 'abandoned',
+      progress: progress(1, 1, 10),
+      sources: [],
+    },
+  ],
   unfinished: [
     {
       id: 9,
@@ -128,7 +152,8 @@ describe('HomePage', () => {
 })
 
 describe('ComponentGalleryPage', () => {
-  it('has a link to every section, and every link has a target', () => {
+  // The whole gallery is a big render, so this one test gets longer when the suite is busy.
+  it('has a link to every section, and every link has a target', { timeout: 20_000 }, () => {
     const { container } = renderPage(<ComponentGalleryPage />)
     const links = within(screen.getByRole('navigation', { name: 'Gallery sections' })).getAllByRole('link')
     expect(links.length).toBeGreaterThan(10)
@@ -137,12 +162,17 @@ describe('ComponentGalleryPage', () => {
     }
   })
 
+  // Each section is its own component, so these render just the one they test.
   describe('Try it', () => {
     const tryIt = () => within(document.getElementById('try-it')!)
 
     it('marks a wrong answer, shows the right one, and shows all per-answer text', async () => {
       const user = userEvent.setup()
-      renderPage(<ComponentGalleryPage />)
+      renderPage(
+        <div id="try-it">
+          <TryIt />
+        </div>,
+      )
 
       expect(tryIt().getByRole('button', { name: /^Submit/ })).toBeDisabled()
       await user.click(tryIt().getByRole('radio', { name: (name) => name.startsWith('[3]') }))
@@ -150,14 +180,18 @@ describe('ComponentGalleryPage', () => {
 
       expect(tryIt().getByText('Your answer')).toBeInTheDocument()
       expect(tryIt().getByText('Marked incorrect')).toBeInTheDocument()
-      expect(tryIt().getByText('Correct answer')).toBeInTheDocument()
+      expect(tryIt().getByText('Missed answer')).toBeInTheDocument()
       expect(tryIt().getByText(/This is the list after the first call only/)).toBeInTheDocument()
       for (const radio of tryIt().getAllByRole('radio')) expect(radio).toBeDisabled()
     })
 
     it('after a reveal shows only the correct answer and its text', async () => {
       const user = userEvent.setup()
-      renderPage(<ComponentGalleryPage />)
+      renderPage(
+        <div id="try-it">
+          <TryIt />
+        </div>,
+      )
 
       await user.click(tryIt().getByRole('button', { name: /^Reveal answer/ }))
 
@@ -168,7 +202,11 @@ describe('ComponentGalleryPage', () => {
 
     it('scores multi-answer all-or-nothing: right options plus an extra is incorrect', async () => {
       const user = userEvent.setup()
-      renderPage(<ComponentGalleryPage />)
+      renderPage(
+        <div id="try-it">
+          <TryIt />
+        </div>,
+      )
       await user.click(tryIt().getByRole('button', { name: /^Reveal answer/ }))
       await user.click(tryIt().getByRole('button', { name: /^Next/ }))
 
@@ -181,12 +219,17 @@ describe('ComponentGalleryPage', () => {
     })
   })
 
-  it('Random clears tile selections, and clicking a tile turns Random off', async () => {
+  it('All sources clears tile selections, and clicking a tile turns it off', async () => {
     const user = userEvent.setup()
-    renderPage(<ComponentGalleryPage />)
+    renderPage(
+      <div id="tiles">
+        <Tiles />
+      </div>,
+    )
     const tiles = within(document.getElementById('tiles')!)
-    const random = tiles.getAllByRole('button', { name: /^Random/ })[0]!
-    const oop = tiles.getByRole('button', { name: /^Object-Oriented Programming/ })
+    const random = tiles.getAllByRole('button', { name: /^All sources/ })[0]!
+    // The working example is shown twice, once for each style of progress. This is the first.
+    const oop = tiles.getAllByRole('button', { name: /^Object-Oriented Programming/ })[0]!
 
     expect(oop).toHaveAttribute('aria-pressed', 'true')
     await user.click(random)

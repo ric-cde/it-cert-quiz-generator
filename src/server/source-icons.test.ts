@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { SOURCE_ICON_KEYS } from '../shared/source-icons'
 import { createApi } from './app'
-import { commitImport, listSources, previewImport } from './bank-import'
+import { commitImport, previewImport } from './bank-import'
+import { listSources } from './sources'
 import { type Db, openDb } from './db'
 import { exams, sources } from './db/schema'
 import { homeOverview } from './home'
@@ -54,7 +55,12 @@ describe('source icons', () => {
   }
   /** Sources made directly, to fill the pool without a hundred imports. */
   const addSources = (icons: readonly (string | null)[]) =>
-    icons.forEach((icon, index) => db.insert(sources).values({ examId: examId(), name: `Filler ${index}`, origin: 'upload', icon }).run())
+    icons.forEach((icon, index) =>
+      db
+        .insert(sources)
+        .values({ examId: examId(), name: `Filler ${index}`, origin: 'upload', icon })
+        .run(),
+    )
 
   describe('suggesting one at import', () => {
     it('suggests the first icon for the first source, and offers the whole pool', () => {
@@ -75,7 +81,11 @@ describe('source icons', () => {
     })
 
     it('counts sources in every exam, so an icon means one source', () => {
-      const other = db.select().from(exams).all().find((exam) => exam.name !== EXAM)!
+      const other = db
+        .select()
+        .from(exams)
+        .all()
+        .find((exam) => exam.name !== EXAM)!
       db.insert(sources).values({ examId: other.id, name: 'Elsewhere', origin: 'upload', icon: pool[0] }).run()
       expect(plan('Alpha').icon).toBe(pool[1])
     })
@@ -107,7 +117,7 @@ describe('source icons', () => {
       expect(iconOf('Alpha')).toBe(pool[0])
     })
 
-    it('offers its own icon as well as the free ones, but not another source\'s', () => {
+    it("offers its own icon as well as the free ones, but not another source's", () => {
       importSource('Beta')
       const { iconChoices } = plan('Alpha')
       expect(iconChoices).toContain(pool[0])
@@ -146,19 +156,37 @@ describe('source icons', () => {
     it('gives every source without an icon its own, oldest first, when the database opens', () => {
       addSources([null, null, null])
       assignMissingIcons(db)
-      expect(db.select().from(sources).all().map((source) => source.icon)).toEqual(pool.slice(0, 3))
+      expect(
+        db
+          .select()
+          .from(sources)
+          .all()
+          .map((source) => source.icon),
+      ).toEqual(pool.slice(0, 3))
     })
 
     it('leaves a source with a good icon alone, and fills in around it', () => {
       addSources([pool[1]!, null, null])
       assignMissingIcons(db)
-      expect(db.select().from(sources).all().map((source) => source.icon)).toEqual([pool[1], pool[0], pool[2]])
+      expect(
+        db
+          .select()
+          .from(sources)
+          .all()
+          .map((source) => source.icon),
+      ).toEqual([pool[1], pool[0], pool[2]])
     })
 
     it('replaces an icon that has been dropped from the pool', () => {
       addSources(['retired-animal', pool[0]!])
       assignMissingIcons(db)
-      expect(db.select().from(sources).all().map((source) => source.icon)).toEqual([pool[1], pool[0]])
+      expect(
+        db
+          .select()
+          .from(sources)
+          .all()
+          .map((source) => source.icon),
+      ).toEqual([pool[1], pool[0]])
     })
 
     it('does nothing the second time', () => {
@@ -183,17 +211,23 @@ describe('source icons', () => {
       expect(listSources(db).map((source) => source.icon)).toEqual([pool[0], pool[1]])
 
       const home = homeOverview(db, 1)
-      expect(home.subjects.flatMap((subject) => subject.exams).flatMap((exam) => exam.sources).map((source) => source.icon)).toEqual([
-        pool[0],
-        pool[1],
-      ])
+      expect(
+        home.subjects
+          .flatMap((subject) => subject.exams)
+          .flatMap((exam) => exam.sources)
+          .map((source) => source.icon),
+      ).toEqual([pool[0], pool[1]])
       expect(practiceData(db, 1, examId())!.sources.map((source) => source.icon)).toEqual([pool[0], pool[1]])
     })
   })
 
   describe('through the API', () => {
     const post = (body: unknown) =>
-      createApi(db).request('/api/import/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      createApi(db).request('/api/import/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
 
     it('accepts a chosen icon and previews with the choices', async () => {
       expect((await post({ bank: bank('Alpha'), icon: 'panda' })).status).toBe(200)

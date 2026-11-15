@@ -28,13 +28,25 @@ const theme: ThemeRegistration = {
   bg: '#00000000',
   settings: [
     { settings: { foreground: CODE.ink } },
-    { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: CODE.comment, fontStyle: 'italic' } },
+    {
+      scope: ['comment', 'punctuation.definition.comment'],
+      settings: { foreground: CODE.comment, fontStyle: 'italic' },
+    },
     { scope: ['string', 'string.quoted', 'markup.inline.raw'], settings: { foreground: CODE.string } },
     { scope: ['constant.numeric', 'constant.language', 'constant.character'], settings: { foreground: CODE.constant } },
-    { scope: ['keyword', 'storage', 'storage.type', 'storage.modifier', 'keyword.control'], settings: { foreground: CODE.keyword } },
+    {
+      scope: ['keyword', 'storage', 'storage.type', 'storage.modifier', 'keyword.control'],
+      settings: { foreground: CODE.keyword },
+    },
     { scope: ['keyword.operator', 'punctuation'], settings: { foreground: CODE.operator } },
-    { scope: ['entity.name.function', 'support.function', 'meta.function-call'], settings: { foreground: CODE.function } },
-    { scope: ['entity.name.type', 'entity.name.class', 'support.class', 'support.type'], settings: { foreground: CODE.type } },
+    {
+      scope: ['entity.name.function', 'support.function', 'meta.function-call'],
+      settings: { foreground: CODE.function },
+    },
+    {
+      scope: ['entity.name.type', 'entity.name.class', 'support.class', 'support.type'],
+      settings: { foreground: CODE.type },
+    },
     { scope: ['entity.name.tag'], settings: { foreground: CODE.keyword } },
     { scope: ['entity.other.attribute-name', 'support.type.property-name'], settings: { foreground: CODE.function } },
   ],

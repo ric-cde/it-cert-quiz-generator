@@ -11,8 +11,10 @@ Needs Node 24.
 | `npm run build`, then `npm start` | Runs the built app for studying at http://localhost:3000 |
 | `npm test` | Runs the logic, API and component tests |
 | `npm run typecheck` | Checks types |
+| `npm run format` | Formats the code with Prettier |
 | `npm run test:e2e` | Runs the browser tests in installed Chrome, on a throwaway database |
 | `npm run db:generate` | Creates a migration after a schema change |
+| `npm run icons:build` | Rebuilds the icon artwork after changing the source animals in `src/shared/source-icons.ts` or the exam logos in `src/shared/exam-icons.ts` |
 
 ## Databases
 
@@ -36,3 +38,7 @@ For another LLM, share `docs/question-bank.schema.json` and `docs/question-bank.
 ## Themes
 
 Each look is a saved file in `src/client/themes/`, holding its fonts and design tokens. One line in `src/client/theme.css` chooses the active theme. To try a new look, copy the current theme to a new file, point that line at the copy and change only the copy. To go back, point the line at the old file.
+
+## Settings and feature flags
+
+Settings are at `/settings`, linked from home. Features beyond the core spec can be switched off there. Each is listed once in `src/shared/features.ts`, and the Settings page is built from that list.

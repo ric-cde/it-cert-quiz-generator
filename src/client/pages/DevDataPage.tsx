@@ -7,7 +7,8 @@ import { DataTable } from '@/components/DataTable'
 import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 import { HttpError, readJson } from '@/lib/http'
-import type { SortDir } from '../../shared/inspector'
+import type { SortDir } from '@shared/inspector'
+import { ErrorText } from '@/components/Notices'
 
 const DEFAULT_TABLE = 'users'
 
@@ -63,17 +64,13 @@ export function DevDataPage() {
                   }
                 >
                   {summary.name}
-                  <span className="tabular-nums text-ink-soft">{summary.rowCount}</span>
+                  <span className="text-ink-soft tabular-nums">{summary.rowCount}</span>
                 </NavLink>
               </li>
             ))}
           </ul>
         </nav>
-        {summaries.isError && (
-          <p role="alert" className="mt-4 text-sm font-semibold text-wrong-ink">
-            {errorMessage(summaries.error, table)}
-          </p>
-        )}
+        {summaries.isError && <ErrorText className="mt-4">{errorMessage(summaries.error, table)}</ErrorText>}
       </div>
 
       <div className="min-w-0">
@@ -95,11 +92,7 @@ export function DevDataPage() {
             <Spinner /> Loading…
           </p>
         )}
-        {data.isError && (
-          <p role="alert" className="text-sm font-semibold text-wrong-ink">
-            {errorMessage(data.error, table)}
-          </p>
-        )}
+        {data.isError && <ErrorText>{errorMessage(data.error, table)}</ErrorText>}
         {data.data && (
           <DataTable
             label={data.data.name}

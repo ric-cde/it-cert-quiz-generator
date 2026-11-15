@@ -55,7 +55,9 @@ test('a category the exam lacks is mapped on import, and the choice is remembere
 })
 
 test('a question shows its own explanation after answering, with its topic', async ({ page }) => {
-  const res = await page.request.post('/api/import/commit', { data: { bank: bank('Explained source', 'Aggregates', 'Explained') } })
+  const res = await page.request.post('/api/import/commit', {
+    data: { bank: bank('Explained source', 'Aggregates', 'Explained') },
+  })
   expect(res.ok()).toBe(true)
 
   await startSource(page, 'Explained source', 'After each question')

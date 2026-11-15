@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
-import type { ExamStatus, HomeExam, HomeOverview } from '../shared/selection'
+import type { ExamStatus, HomeExam, HomeOverview } from '../shared/home'
 import type { Db } from './db'
 import { exams, quizzes, sources, subjects, userExams } from './db/schema'
 import { labelOf } from './quiz'
@@ -10,7 +10,11 @@ import { loadPool } from './selection'
 export function homeOverview(db: Db, userId: number): HomeOverview {
   const subjectRows = db.select().from(subjects).orderBy(asc(subjects.id)).all()
   const examRows = db.select().from(exams).orderBy(asc(exams.id)).all()
-  const sourceRows = db.select({ id: sources.id, examId: sources.examId, name: sources.name, icon: sources.icon }).from(sources).orderBy(asc(sources.name)).all()
+  const sourceRows = db
+    .select({ id: sources.id, examId: sources.examId, name: sources.name, icon: sources.icon })
+    .from(sources)
+    .orderBy(asc(sources.name))
+    .all()
 
   const unfinished = db
     .select({ quiz: quizzes, exam: exams.name })
@@ -26,15 +30,20 @@ export function homeOverview(db: Db, userId: number): HomeOverview {
       .from(userExams)
       .where(eq(userExams.userId, userId))
       .all()
-      .map((row): [number, ExamStatus] => [row.examId, row.passedAt ? 'passed' : row.abandonedAt ? 'abandoned' : 'active']),
+      .map((row): [number, ExamStatus] => [
+        row.examId,
+        row.passedAt ? 'passed' : row.abandonedAt ? 'abandoned' : 'active',
+      ]),
   )
 
+  const subjectNames = new Map(subjectRows.map((subject) => [subject.id, subject.name]))
   const examCards: (HomeExam & { subjectId: number })[] = examRows.map((exam) => {
     const pool = loadPool(db, userId, exam.id).questions
     return {
       id: exam.id,
       subjectId: exam.subjectId,
       name: exam.name,
+      subject: subjectNames.get(exam.subjectId) ?? '',
       status: statuses.get(exam.id) ?? 'active',
       progress: progressOf(pool),
       sources: sourceRows

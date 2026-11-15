@@ -14,6 +14,13 @@ const IS_CORRECT = { type: 'object', properties: { isCorrect: { const: true } },
 
 const countCorrect = (options: { isCorrect: boolean }[]) => options.filter((option) => option.isCorrect).length
 
+/** Import only: JSON Schema can't compare options with each other. */
+const labelsConsistent = (options: { label?: string }[]) => {
+  const labels = options.map((option) => option.label).filter((label) => label !== undefined)
+  return labels.length === 0 || (labels.length === options.length && new Set(labels).size === labels.length)
+}
+const LABELS_MESSAGE = 'Give every option a different label, or give none a label'
+
 const explanationOrigin = z
   .enum(['source', 'generated'])
   .describe(
@@ -22,7 +29,16 @@ const explanationOrigin = z
   .optional()
 
 const optionSchema = z.strictObject({
-  bodyMd: text('The answer text in Markdown. Leave out labels such as "A." or "1)", because options get shuffled.'),
+  label: z
+    .string()
+    .regex(/^[A-Za-z0-9]{1,4}$/)
+    .describe(
+      'Optional. The letter or number the option has in the source, such as "A", without punctuation. Give labels only when the source\'s explanation refers to options by them, so that it can be kept in its own words. Label every option of the question or none, each one different. The label is shown beside the option. Labelled options keep the source\'s order unless the user chooses to shuffle them, and then each label moves with its option.',
+    )
+    .optional(),
+  bodyMd: text(
+    'The answer text in Markdown. Leave out labels such as "A." or "1)": use `label` for those if they\'re needed.',
+  ),
   isCorrect: z.boolean().describe('Whether this option is a correct answer.'),
   explanationMd: text(
     'Optional text shown with this option after answering. For a wrong option, say why it is wrong in 1-3 sentences. For a correct option, say why it is right in 1-2 sentences. Leave it out rather than inventing filler.',
@@ -55,7 +71,7 @@ const lockOptionOrder = z
 /** Multiple choice only. Free-form questions explain themselves in their model answer. */
 const questionExplanation = {
   explanationMd: text(
-    'Optional text about the question as a whole, shown below the options after answering. Use it for a source\'s single explanation that covers the question rather than one option. Per-option text can be used as well, or instead.',
+    "Optional text about the question as a whole, shown below the options after answering. Use it for a source's single explanation that covers the question rather than one option, and for one that refers to options by their labels. Per-option text can be used as well, or instead.",
   ).optional(),
   explanationOrigin,
 }
@@ -69,6 +85,7 @@ const singleQuestionSchema = z.strictObject({
     .array(optionSchema)
     .min(2)
     .refine((options) => countCorrect(options) === 1, 'A single answer question needs exactly one correct option')
+    .refine(labelsConsistent, LABELS_MESSAGE)
     .meta({ contains: IS_CORRECT, minContains: 1, maxContains: 1 }),
 })
 
@@ -85,6 +102,7 @@ const multiQuestionSchema = z.strictObject({
     .array(optionSchema)
     .min(2)
     .refine((options) => countCorrect(options) >= 1, 'A multi-answer question needs at least one correct option')
+    .refine(labelsConsistent, LABELS_MESSAGE)
     .meta({ contains: IS_CORRECT, minContains: 1 }),
 })
 
@@ -113,7 +131,9 @@ export const questionBankSchema = z
     exam: text('The name of the exam, exactly as it appears in the app.'),
     source: z
       .strictObject({
-        name: text('Where the questions come from, such as "Boyarsky study guide". Each source gets its own quality rating in the app.'),
+        name: text(
+          'Where the questions come from, such as "Boyarsky study guide". Each source gets its own quality rating in the app.',
+        ),
         origin: z
           .enum(['upload', 'generated'])
           .describe('"upload" for questions converted from existing material. "generated" for questions an AI wrote.'),
@@ -131,7 +151,9 @@ export const questionBankSchema = z
     chapters: z.array(chapterSchema).min(1),
     omitted: z
       .array(omittedSchema)
-      .describe('Questions deliberately left out. Images are not supported, so list any question that depends on one here instead of including it.')
+      .describe(
+        'Questions deliberately left out. Images are not supported, so list any question that depends on one here instead of including it.',
+      )
       .optional(),
   })
   .superRefine((bank, ctx) => {
@@ -164,7 +186,7 @@ export const questionBankSchema = z
   .meta({
     title: 'Question bank',
     description:
-      'One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Options are shuffled, so never refer to one by letter or position. Beyond this schema, externalId values and chapter names must each be unique within the file, and categories should use the exam\'s own names where one fits. Output only the JSON.',
+      "One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Options are shuffled, so never refer to one by letter or position, unless the options carry their source's labels. Beyond this schema, externalId values and chapter names must each be unique within the file, and categories should use the exam's own names where one fits. Output only the JSON.",
   })
 
 export type QuestionBank = z.infer<typeof questionBankSchema>

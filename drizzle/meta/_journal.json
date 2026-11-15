@@ -64,6 +64,41 @@
       "when": 1793984563184,
       "tag": "0008_shiny_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794063621734,
+      "tag": "0009_bumpy_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794140102083,
+      "tag": "0010_perfect_natasha_romanoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794152758102,
+      "tag": "0011_orange_thunderbolt_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794759328769,
+      "tag": "0012_nervous_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794763978731,
+      "tag": "0013_faithful_namorita",
+      "breakpoints": true
     }
   ]
 }

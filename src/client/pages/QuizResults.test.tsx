@@ -4,10 +4,13 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
-import type { QuizState, ReviewEntry } from '../../shared/quiz'
+import type { QuizState, ReviewEntry } from '@shared/quiz'
 import { QuizResults } from './QuizResults'
 
-vi.mock('@/lib/highlight', () => ({ highlight: vi.fn(async () => null), resolveLanguage: (language?: string) => language }))
+vi.mock('@/lib/highlight', () => ({
+  highlight: vi.fn(async () => null),
+  resolveLanguage: (language?: string) => language,
+}))
 vi.mock('@/lib/settings', () => ({
   useSyntaxHighlighting: () => ({ enabled: false, ready: true, toggle: () => {} }),
 }))
@@ -25,6 +28,7 @@ const finished = (missed: number, feedback: QuizState['feedback'] = 'after_each'
   feedback,
   total: 4,
   position: 4,
+  marks: [],
   finished: true,
   current: null,
   results: { correct: 2, incorrect: 1, revealed: 0, skipped: 1, notReached: 0 },
@@ -48,8 +52,22 @@ const entry = (number: number, outcome: ReviewEntry['outcome'], overrides: Parti
   category: 'Logic',
   outcome,
   options: [
-    { id: number * 10 + 1, bodyMd: `Right ${number}`, isCorrect: true, chosen: outcome === 'correct', explanationMd: null },
-    { id: number * 10 + 2, bodyMd: `Wrong ${number}`, isCorrect: false, chosen: outcome === 'incorrect', explanationMd: `Why wrong ${number}` },
+    {
+      id: number * 10 + 1,
+      label: null,
+      bodyMd: `Right ${number}`,
+      isCorrect: true,
+      chosen: outcome === 'correct',
+      explanationMd: null,
+    },
+    {
+      id: number * 10 + 2,
+      label: null,
+      bodyMd: `Wrong ${number}`,
+      isCorrect: false,
+      chosen: outcome === 'incorrect',
+      explanationMd: `Why wrong ${number}`,
+    },
   ],
   explanationMd: null,
   reviewNote: null,
@@ -73,7 +91,11 @@ function renderResults(state: QuizState) {
 beforeEach(() => {
   vi.clearAllMocks()
   getReview.mockImplementation(async () =>
-    json([entry(1, 'correct'), entry(2, 'incorrect'), entry(3, 'skipped', { options: entry(3, 'skipped').options.map((o) => ({ ...o, explanationMd: null })) })]),
+    json([
+      entry(1, 'correct'),
+      entry(2, 'incorrect'),
+      entry(3, 'skipped', { options: entry(3, 'skipped').options.map((o) => ({ ...o, explanationMd: null })) }),
+    ]),
   )
   postRetry.mockImplementation(async () => json({ id: 6 }, 201))
 })
@@ -111,7 +133,7 @@ describe('QuizResults', () => {
     const second = await screen.findByRole('article', { name: 'Question 2' })
     expect(within(second).getByText('Incorrect')).toBeInTheDocument()
     expect(within(second).getByText('Your answer')).toBeInTheDocument()
-    expect(within(second).getByText('Correct answer')).toBeInTheDocument()
+    expect(within(second).getByText('Missed answer')).toBeInTheDocument()
     expect(within(second).getByText('Why wrong 2')).toBeInTheDocument()
 
     const third = screen.getByRole('article', { name: 'Question 3' })

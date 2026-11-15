@@ -20,7 +20,9 @@ export function syllabusMarkdown(item: SeedExam) {
   return item.categories
     .map((category) => {
       const weight = category.weight === undefined ? '' : ` (${category.weight}%)`
-      const topics = (category.topics ?? []).map((topic) => `  - ${topic.name}${topic.weight === undefined ? '' : ` (${topic.weight}%)`}`)
+      const topics = (category.topics ?? []).map(
+        (topic) => `  - ${topic.name}${topic.weight === undefined ? '' : ` (${topic.weight}%)`}`,
+      )
       return [`- **${category.name}**${weight}`, ...topics].join('\n')
     })
     .join('\n')

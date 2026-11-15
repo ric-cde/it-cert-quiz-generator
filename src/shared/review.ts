@@ -28,6 +28,8 @@ export type QuestionToReview = {
   reviewNote: string
   options: {
     id: number
+    /** The option's letter in the source, when its explanation refers to options by letter. */
+    label: string | null
     bodyMd: string
     isCorrect: boolean
     explanationMd: string | null

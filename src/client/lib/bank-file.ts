@@ -14,7 +14,11 @@ export function parseBankFile(text: string): ParsedBankFile {
     return { ok: true, bank: JSON.parse(json) }
   } catch (error) {
     if (!json.endsWith('}')) {
-      return { ok: false, message: "This file seems to be cut off: it doesn't end the way a question bank should. Ask for it to be generated again." }
+      return {
+        ok: false,
+        message:
+          "This file seems to be cut off: it doesn't end the way a question bank should. Ask for it to be generated again.",
+      }
     }
     return { ok: false, message: `This isn't valid JSON. ${(error as Error).message}` }
   }

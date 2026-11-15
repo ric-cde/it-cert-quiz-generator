@@ -1,23 +1,40 @@
 import clsx from 'clsx'
+import type { QuizMark } from '@shared/quiz'
 
 /** Beyond this many questions, segments would be slivers, so the bar is one continuous line. */
 export const MAX_SEGMENTS = 120
 
+type SegmentState = QuizMark | 'done' | 'current' | 'todo'
+
+const SEGMENT_COLOURS: Record<SegmentState, string> = {
+  correct: 'bg-correct',
+  incorrect: 'bg-wrong',
+  skipped: 'bg-amber',
+  // Done, but with no mark to show: at-the-end feedback mustn't hint at how you're doing.
+  answered: 'bg-accent',
+  done: 'bg-accent',
+  current: 'bg-accent/35',
+  todo: 'bg-line',
+}
+
 /**
  * How far through the quiz you are, with one segment per question: done ones filled, the current
- * one paler, the rest grey. It's in the neutral accent colour, because green and red mean marked,
- * and at-the-end feedback mustn't hint at how you're doing.
+ * one paler, the rest grey. A done segment takes the colour of its mark: green for correct, red
+ * for incorrect, yellow for skipped. Without a mark it's the neutral accent colour.
  */
 export function QuizProgress({
   position,
   total,
   current,
+  marks,
 }: {
   /** How many questions are done. */
   position: number
   total: number
   /** The question on screen, counting from 0, if it isn't done yet. */
   current?: number
+  /** How each done question went, in the order asked. */
+  marks?: QuizMark[]
 }) {
   const done = Math.min(Math.max(position, 0), total)
   const bar = {
@@ -32,7 +49,10 @@ export function QuizProgress({
     const percent = total > 0 ? (done / total) * 100 : 0
     return (
       <div {...bar} className="h-1.5 overflow-hidden rounded-full bg-sunken">
-        <div className="h-full bg-accent transition-[width] duration-300 ease-out-soft" style={{ width: `${percent}%` }} />
+        <div
+          className="h-full bg-accent transition-[width] duration-300 ease-out-soft"
+          style={{ width: `${percent}%` }}
+        />
       </div>
     )
   }
@@ -40,16 +60,14 @@ export function QuizProgress({
   return (
     <div {...bar} className={clsx('flex h-1.5', total <= 30 ? 'gap-[3px]' : total <= 60 ? 'gap-0.5' : 'gap-px')}>
       {Array.from({ length: total }, (_, index) => {
-        const state = index < done ? 'done' : index === current ? 'current' : 'todo'
+        const state: SegmentState = index < done ? (marks?.[index] ?? 'done') : index === current ? 'current' : 'todo'
         return (
           <span
             key={index}
             data-segment={state}
             className={clsx(
               'min-w-0 flex-1 rounded-[2px] transition-colors duration-300 ease-out-soft',
-              state === 'done' && 'bg-accent',
-              state === 'current' && 'bg-accent/35',
-              state === 'todo' && 'bg-line',
+              SEGMENT_COLOURS[state],
             )}
           />
         )

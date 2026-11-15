@@ -32,10 +32,11 @@ const containerByState: Record<AnswerState, string> = {
   idle: 'border-line-strong/70 bg-surface cursor-pointer hocus:border-accent hocus:bg-accent-soft/40',
   selected: 'border-accent bg-accent-soft cursor-pointer',
   // A picked correct answer is solid and filled. A missed one has wide dashes and green stripes,
-  // sized by percentage so there are about six across, whatever the option's width.
+  // sized by percentage so there are about six across, counting green and white, whatever the
+  // option's width.
   'correct-chosen': 'border-correct bg-correct-soft shadow-[inset_0_0_0_1px_var(--color-correct)]',
   'correct-missed':
-    'relative border-transparent bg-surface bg-[image:repeating-linear-gradient(135deg,var(--color-correct-soft)_0_7%,transparent_7%_14%)]',
+    'relative border-transparent bg-surface bg-[image:repeating-linear-gradient(135deg,var(--color-correct-soft)_0_16%,transparent_16%_32%)]',
   'wrong-chosen': 'border-wrong bg-wrong-soft animate-nudge',
   neutral: 'border-line bg-surface',
 }
@@ -50,7 +51,8 @@ const meaningByState: Partial<Record<AnswerState, string>> = {
 const tagByState: Partial<Record<AnswerState, { text: string; className: string }>> = {
   'correct-chosen': { text: 'Your answer', className: 'border-correct text-correct-ink' },
   'wrong-chosen': { text: 'Your answer', className: 'border-wrong text-wrong-ink' },
-  'correct-missed': { text: 'Correct answer', className: 'border-dashed border-correct text-correct-ink' },
+  // Amber, as for unsolved elsewhere: it's the right answer, but not one you got.
+  'correct-missed': { text: 'Missed answer', className: 'border-dashed border-amber text-amber-ink' },
 }
 
 /**
@@ -59,7 +61,10 @@ const tagByState: Partial<Record<AnswerState, { text: string; className: string 
  */
 function WideDashedBorder() {
   return (
-    <svg aria-hidden="true" className="pointer-events-none absolute -top-[0.75px] -left-[0.75px] size-[calc(100%+1.5px)] overflow-visible text-correct">
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute -top-[0.75px] -left-[0.75px] size-[calc(100%+1.5px)] overflow-visible text-correct"
+    >
       <rect
         width="100%"
         height="100%"
@@ -104,6 +109,7 @@ export function AnswerOption({
   kind,
   name,
   state,
+  label,
   children,
   explanation,
   shortcut,
@@ -115,6 +121,8 @@ export function AnswerOption({
   /** Shared by the options of a question, so radios group together. */
   name: string
   state: AnswerState
+  /** The option's letter in the source, such as "A", so an explanation can refer to it. It moves with the option. */
+  label?: string | null
   /** The option text, usually from Markdown. */
   children: ReactNode
   /** Per-answer text. Nothing is shown when it's missing. */
@@ -156,12 +164,18 @@ export function AnswerOption({
         <span className="flex size-6 flex-none items-center justify-center">
           <Marker state={state} kind={kind} />
         </span>
+        {label && (
+          <span
+            className={clsx('flex-none font-mono font-bold', state === 'neutral' ? 'text-ink-soft' : 'text-ink')}
+            data-option-label
+          >
+            {label}.
+          </span>
+        )}
         <span className={clsx('min-w-0 flex-1', state === 'neutral' && 'text-ink-soft')}>
           {children}
           {meaning && <span className="sr-only">{meaning}</span>}
-          {explanation && (
-            <span className="mt-1.5 block animate-rise text-sm text-ink-soft">{explanation}</span>
-          )}
+          {explanation && <span className="mt-1.5 block animate-rise text-sm text-ink-soft">{explanation}</span>}
         </span>
         {shortcut !== undefined && interactive && (
           <span className="hidden flex-none sm:block">

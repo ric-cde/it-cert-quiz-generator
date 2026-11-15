@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ImportPlan } from '../shared/import'
 import { createApi } from './app'
-import { commitImport, deleteSource, listSources, previewImport } from './bank-import'
+import { commitImport, previewImport } from './bank-import'
+import { deleteSource, listSources } from './sources'
 import { type Db, openDb } from './db'
 import { attempts, categories, categoryAliases, chapters, options, questions, quizzes, sources } from './db/schema'
 
@@ -61,7 +62,10 @@ describe('import', () => {
     })
 
     it('includes omitted questions and warnings', () => {
-      const result = plan(db, bank([single({ bodyMd: 'Is List<String> valid?' })], { omitted: [{ reference: 'Q2', reason: 'Image' }] }))
+      const result = plan(
+        db,
+        bank([single({ bodyMd: 'Is List<String> valid?' })], { omitted: [{ reference: 'Q2', reason: 'Image' }] }),
+      )
       expect(result.omitted).toEqual([{ reference: 'Q2', reason: 'Image' }])
       expect(result.warnings).toHaveLength(1)
       expect(firstAction(result).warnings).toHaveLength(1)
@@ -86,7 +90,13 @@ describe('import', () => {
       expect(result).toMatchObject({ ok: true, added: 2 })
 
       const [mc, free] = allQuestions()
-      expect(mc).toMatchObject({ externalId: 'q1', type: 'single', bodyMd: 'A question?', lockOptionOrder: true, flaggedAt: null })
+      expect(mc).toMatchObject({
+        externalId: 'q1',
+        type: 'single',
+        bodyMd: 'A question?',
+        lockOptionOrder: true,
+        flaggedAt: null,
+      })
       expect(free).toMatchObject({ type: 'free_form', modelAnswerMd: 'Because' })
       expect(mc!.contentHash).toMatch(/^[0-9a-f]{64}$/)
       expect(allOptions()).toMatchObject([
@@ -142,7 +152,13 @@ describe('import', () => {
       commitImport(db, second)
 
       expect(db.select().from(sources).all()).toHaveLength(1)
-      expect(db.select().from(chapters).all().map((c) => c.name)).toEqual(['One', 'Two'])
+      expect(
+        db
+          .select()
+          .from(chapters)
+          .all()
+          .map((c) => c.name),
+      ).toEqual(['One', 'Two'])
       expect(allQuestions()).toHaveLength(3)
     })
 
@@ -167,13 +183,37 @@ describe('import', () => {
       commitImport(db, bank([single()]))
       const [question] = allQuestions()
       const [right] = allOptions()
-      const quiz = db.insert(quizzes).values({ userId: 1, examId: 2, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question!.id] }).returning().get()
+      const quiz = db
+        .insert(quizzes)
+        .values({
+          userId: 1,
+          examId: 2,
+          mode: 'study',
+          config: { feedback: 'after_each', sourceId: 1 },
+          questionIds: [question!.id],
+        })
+        .returning()
+        .get()
       db.insert(attempts)
-        .values({ userId: 1, questionId: question!.id, quizId: quiz.id, selectedOptionIds: [right!.id], result: 'correct', kind: 'answered' })
+        .values({
+          userId: 1,
+          questionId: question!.id,
+          quizId: quiz.id,
+          selectedOptionIds: [right!.id],
+          result: 'correct',
+          kind: 'answered',
+        })
         .run()
 
       // The answer key was wrong, so the file now marks the other option.
-      const fixed = bank([single({ options: [{ bodyMd: 'Right', isCorrect: false }, { bodyMd: 'Wrong', isCorrect: true }] })])
+      const fixed = bank([
+        single({
+          options: [
+            { bodyMd: 'Right', isCorrect: false },
+            { bodyMd: 'Wrong', isCorrect: true },
+          ],
+        }),
+      ])
       expect(firstAction(plan(db, fixed)).changes).toEqual(['correct answer'])
       commitImport(db, fixed)
 
@@ -183,7 +223,12 @@ describe('import', () => {
 
     it('soft-deletes an option that has gone, adds a new one, and restores one that returns', () => {
       commitImport(db, bank([single()]))
-      const replaced = single({ options: [{ bodyMd: 'Right', isCorrect: true }, { bodyMd: 'New', isCorrect: false }] })
+      const replaced = single({
+        options: [
+          { bodyMd: 'Right', isCorrect: true },
+          { bodyMd: 'New', isCorrect: false },
+        ],
+      })
       commitImport(db, bank([replaced]))
 
       const after = allOptions()
@@ -196,16 +241,48 @@ describe('import', () => {
       expect(allOptions().find((o) => o.bodyMd === 'New')!.deletedAt).toBeInstanceOf(Date)
     })
 
+    it('keeps options apart that differ only by capitals, such as Long and long', () => {
+      const cased = (bodyMd: string) =>
+        single({
+          bodyMd,
+          options: [
+            { bodyMd: '`Long`', isCorrect: true },
+            { bodyMd: '`long`', isCorrect: false },
+            { bodyMd: '`int`', isCorrect: false },
+          ],
+        })
+      commitImport(db, bank([cased('Which type?')]))
+      const before = allOptions().map((o) => ({ id: o.id, bodyMd: o.bodyMd }))
+
+      expect(firstAction(plan(db, bank([cased('Which type?')]))).action).toBe('unchanged')
+      commitImport(db, bank([cased('Which wrapper type?')]))
+
+      const after = allOptions()
+      expect(after).toHaveLength(3)
+      expect(after.map((o) => ({ id: o.id, bodyMd: o.bodyMd }))).toEqual(before)
+      expect(after.every((o) => o.deletedAt === null)).toBe(true)
+    })
+
     it('does not count soft-deleted options as a change', () => {
       commitImport(db, bank([single()]))
-      const replaced = bank([single({ options: [{ bodyMd: 'Right', isCorrect: true }, { bodyMd: 'New', isCorrect: false }] })])
+      const replaced = bank([
+        single({
+          options: [
+            { bodyMd: 'Right', isCorrect: true },
+            { bodyMd: 'New', isCorrect: false },
+          ],
+        }),
+      ])
       commitImport(db, replaced)
       expect(firstAction(plan(db, replaced)).action).toBe('unchanged')
     })
 
     it('never wipes an explanation that the file leaves blank', () => {
       const withText = single({
-        options: [{ bodyMd: 'Right', isCorrect: true, explanationMd: 'Generated', explanationOrigin: 'generated' }, { bodyMd: 'Wrong', isCorrect: false }],
+        options: [
+          { bodyMd: 'Right', isCorrect: true, explanationMd: 'Generated', explanationOrigin: 'generated' },
+          { bodyMd: 'Wrong', isCorrect: false },
+        ],
       })
       commitImport(db, bank([withText]))
 
@@ -227,7 +304,12 @@ describe('import', () => {
 
     it('can change a question to free-form, retiring its options', () => {
       commitImport(db, bank([single()]))
-      commitImport(db, bank([{ externalId: 'q1', type: 'free_form', category: 'Logic', bodyMd: 'A question?', modelAnswerMd: 'Because' }]))
+      commitImport(
+        db,
+        bank([
+          { externalId: 'q1', type: 'free_form', category: 'Logic', bodyMd: 'A question?', modelAnswerMd: 'Because' },
+        ]),
+      )
 
       expect(allQuestions()[0]).toMatchObject({ type: 'free_form', modelAnswerMd: 'Because' })
       expect(allOptions().every((o) => o.deletedAt)).toBe(true)
@@ -302,19 +384,30 @@ describe('import', () => {
 
     it('points out when two sources disagree about the answer', () => {
       commitImport(db, bank([single()]))
-      const disagrees = single({ externalId: 'x1', options: [{ bodyMd: 'Right', isCorrect: false }, { bodyMd: 'Wrong', isCorrect: true }] })
+      const disagrees = single({
+        externalId: 'x1',
+        options: [
+          { bodyMd: 'Right', isCorrect: false },
+          { bodyMd: 'Wrong', isCorrect: true },
+        ],
+      })
       expect(firstAction(plan(db, bank([disagrees], otherSource))).duplicateOf?.answersDiffer).toBe(true)
     })
 
     it('spots one earlier in the same file', () => {
       const result = plan(db, bank([single(), single({ externalId: 'q2' })]))
       expect(result.chapters[0]!.questions[1]!.duplicateOf?.place).toBe('One, question 1 in this file')
-      expect(commitImport(db, bank([single(), single({ externalId: 'q2' })]))).toMatchObject({ added: 1, skippedDuplicates: 1 })
+      expect(commitImport(db, bank([single(), single({ externalId: 'q2' })]))).toMatchObject({
+        added: 1,
+        skippedDuplicates: 1,
+      })
     })
 
     it('ignores one in another exam, where the same question can reasonably appear', () => {
       commitImport(db, bank([single()]))
-      const java = bank([single({ category: 'Handling Exceptions' })], { exam: 'Java SE 21 Developer Professional (1Z0-830)' })
+      const java = bank([single({ category: 'Handling Exceptions' })], {
+        exam: 'Java SE 21 Developer Professional (1Z0-830)',
+      })
       expect(plan(db, java).counts.duplicates).toBe(0)
     })
 
@@ -344,7 +437,12 @@ describe('import', () => {
         ]),
       )
       expect(result.categories).toEqual([
-        { name: 'Logic', count: 1, status: 'official', target: expect.objectContaining({ name: 'Logic', parent: null }) },
+        {
+          name: 'Logic',
+          count: 1,
+          status: 'official',
+          target: expect.objectContaining({ name: 'Logic', parent: null }),
+        },
         {
           name: 'Aggregates',
           count: 1,
@@ -388,16 +486,28 @@ describe('import', () => {
       expect(categoryOf().id).toBe(target)
       expect(db.select().from(categoryAliases).all()).toMatchObject([{ name: 'Forms', categoryId: target }])
 
-      const next = plan(db, bank([single({ externalId: 'q2', bodyMd: 'Two?', category: 'Forms' })], { source: { name: 'Next', origin: 'upload' } }))
+      const next = plan(
+        db,
+        bank([single({ externalId: 'q2', bodyMd: 'Two?', category: 'Forms' })], {
+          source: { name: 'Next', origin: 'upload' },
+        }),
+      )
       expect(next.categories).toEqual([
         { name: 'Forms', count: 1, status: 'remembered', target: expect.objectContaining({ id: target }) },
       ])
-      commitImport(db, bank([single({ externalId: 'q2', bodyMd: 'Two?', category: 'Forms' })], { source: { name: 'Next', origin: 'upload' } }))
+      commitImport(
+        db,
+        bank([single({ externalId: 'q2', bodyMd: 'Two?', category: 'Forms' })], {
+          source: { name: 'Next', origin: 'upload' },
+        }),
+      )
       expect(categoryOf('q2').id).toBe(target)
     })
 
     it('can change a remembered choice to keeping the name, which forgets the mapping', () => {
-      commitImport(db, bank([single({ category: 'Forms' })]), { categoryChoices: { Forms: { map: byName('Logic').id } } })
+      commitImport(db, bank([single({ category: 'Forms' })]), {
+        categoryChoices: { Forms: { map: byName('Logic').id } },
+      })
       commitImport(db, bank([single({ category: 'Forms' })]), { categoryChoices: { Forms: { keep: true } } })
 
       expect(categoryOf()).toMatchObject({ name: 'Forms', official: false })
@@ -410,9 +520,11 @@ describe('import', () => {
       expect(categoryOf().name).toBe('Logic')
     })
 
-    it("refuses a choice of category from another exam, and saves nothing", () => {
+    it('refuses a choice of category from another exam, and saves nothing', () => {
       const java = db.select().from(categories).where(eq(categories.name, 'Controlling Program Flow')).get()!
-      const result = commitImport(db, bank([single({ category: 'Forms' })]), { categoryChoices: { Forms: { map: java.id } } })
+      const result = commitImport(db, bank([single({ category: 'Forms' })]), {
+        categoryChoices: { Forms: { map: java.id } },
+      })
       expect(result).toMatchObject({ ok: false, problems: [{ location: 'Category "Forms"' }] })
       expect(allQuestions()).toEqual([])
     })
@@ -420,10 +532,16 @@ describe('import', () => {
     it('accepts choices through the API, and validates them', async () => {
       const api = createApi(db)
       const post = (body: object) =>
-        api.request('/api/import/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        api.request('/api/import/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
 
       expect((await post({ bank: bank([single()]), categoryChoices: { X: { map: 'one' } } })).status).toBe(400)
-      expect((await post({ bank: bank([single({ category: 'X' })]), categoryChoices: { X: { keep: true } } })).status).toBe(200)
+      expect(
+        (await post({ bank: bank([single({ category: 'X' })]), categoryChoices: { X: { keep: true } } })).status,
+      ).toBe(200)
       expect(categoryOf()).toMatchObject({ name: 'X', official: false })
     })
   })
@@ -482,11 +600,60 @@ describe('import', () => {
       expect(question()).toMatchObject({ explanationMd: 'Book (question)', explanationOrigin: 'source' })
     })
 
-    it('never wipes text when the file has none', () => {
+    it('keeps AI-written text when the file has none', () => {
       commitImport(db, bank([withText('generated', 'AI')]))
       commitImport(db, bank([single()]))
       expect(question().explanationMd).toBe('AI (question)')
       expect(right().explanationMd).toBe('AI (option)')
+    })
+
+    it("removes source text the file now leaves out, because the file is the source's own words", () => {
+      commitImport(db, bank([withText('source', 'Split')]))
+      const regrouped = single({
+        explanationMd: 'A. The whole answer, as the book gives it.',
+        options: [
+          { bodyMd: 'Right', isCorrect: true },
+          { bodyMd: 'Wrong', isCorrect: false },
+        ],
+      })
+      expect(firstAction(plan(db, bank([regrouped])))).toMatchObject({ action: 'updated', changes: ['explanations'] })
+
+      commitImport(db, bank([regrouped]))
+      expect(question()).toMatchObject({ explanationMd: 'A. The whole answer, as the book gives it.' })
+      expect(right()).toMatchObject({ explanationMd: null, explanationOrigin: null })
+    })
+  })
+
+  describe('option labels', () => {
+    const lettered = (overrides: object = {}) =>
+      single({
+        explanationMd: 'A. Because B is wrong.',
+        options: [
+          { label: 'A', bodyMd: 'Right', isCorrect: true },
+          { label: 'B', bodyMd: 'Wrong', isCorrect: false },
+        ],
+        ...overrides,
+      })
+
+    it('stores the letter each option has in the source', () => {
+      commitImport(db, bank([lettered()]))
+      expect(allOptions().map((o) => o.label)).toEqual(['A', 'B'])
+    })
+
+    it('adds letters to options already stored, keeping their IDs and the answers given', () => {
+      commitImport(db, bank([single()]))
+      const ids = allOptions().map((o) => o.id)
+
+      const preview = firstAction(plan(db, bank([lettered()])))
+      expect(preview).toMatchObject({ action: 'updated' })
+      expect(preview.changes).toContain('option labels')
+
+      commitImport(db, bank([lettered()]))
+      expect(allOptions().map((o) => [o.id, o.label])).toEqual([
+        [ids[0], 'A'],
+        [ids[1], 'B'],
+      ])
+      expect(firstAction(plan(db, bank([lettered()]))).action).toBe('unchanged')
     })
   })
 
@@ -494,7 +661,12 @@ describe('import', () => {
     const source = () => db.select().from(sources).get()!
 
     it('saves trust and reference from the file', () => {
-      commitImport(db, bank([single()], { source: { name: 'Mock source', origin: 'upload', trust: 'official', reference: 'https://example.com' } }))
+      commitImport(
+        db,
+        bank([single()], {
+          source: { name: 'Mock source', origin: 'upload', trust: 'official', reference: 'https://example.com' },
+        }),
+      )
       expect(source()).toMatchObject({ trust: 'official', reference: 'https://example.com' })
     })
 
@@ -504,7 +676,12 @@ describe('import', () => {
     })
 
     it('updates them from a later file, and keeps them when it leaves them out', () => {
-      commitImport(db, bank([single()], { source: { name: 'Mock source', origin: 'upload', trust: 'third_party', reference: 'Book, 2nd edition' } }))
+      commitImport(
+        db,
+        bank([single()], {
+          source: { name: 'Mock source', origin: 'upload', trust: 'third_party', reference: 'Book, 2nd edition' },
+        }),
+      )
       commitImport(db, bank([single()]))
       expect(source()).toMatchObject({ trust: 'third_party', reference: 'Book, 2nd edition' })
 
@@ -515,7 +692,14 @@ describe('import', () => {
 
   describe('listSources and deleteSource', () => {
     it('lists each source with its counts, leaving out deleted questions', () => {
-      commitImport(db, bank([single({ reviewNote: 'Check' }), single({ externalId: 'q2', bodyMd: 'Two?' }), single({ externalId: 'q3', bodyMd: 'Three?' })]))
+      commitImport(
+        db,
+        bank([
+          single({ reviewNote: 'Check' }),
+          single({ externalId: 'q2', bodyMd: 'Two?' }),
+          single({ externalId: 'q3', bodyMd: 'Three?' }),
+        ]),
+      )
       db.update(questions).set({ flaggedAt: new Date() }).where(eq(questions.externalId, 'q2')).run()
       db.update(questions).set({ deletedAt: new Date() }).where(eq(questions.externalId, 'q3')).run()
 
@@ -539,7 +723,10 @@ describe('import', () => {
 
     it('removes a source and everything in it, leaving other sources alone', () => {
       commitImport(db, bank([single()]))
-      commitImport(db, bank([single({ externalId: 'x', bodyMd: 'Other?' })], { source: { name: 'Keep', origin: 'upload' } }))
+      commitImport(
+        db,
+        bank([single({ externalId: 'x', bodyMd: 'Other?' })], { source: { name: 'Keep', origin: 'upload' } }),
+      )
 
       expect(deleteSource(db, 1)).toBe('deleted')
       expect(listSources(db).map((s) => s.name)).toEqual(['Keep'])
@@ -550,8 +737,27 @@ describe('import', () => {
     it('refuses to remove a source with attempts', () => {
       commitImport(db, bank([single()]))
       const [question] = allQuestions()
-      const quiz = db.insert(quizzes).values({ userId: 1, examId: 2, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question!.id] }).returning().get()
-      db.insert(attempts).values({ userId: 1, questionId: question!.id, quizId: quiz.id, selectedOptionIds: [], result: 'incorrect', kind: 'revealed' }).run()
+      const quiz = db
+        .insert(quizzes)
+        .values({
+          userId: 1,
+          examId: 2,
+          mode: 'study',
+          config: { feedback: 'after_each', sourceId: 1 },
+          questionIds: [question!.id],
+        })
+        .returning()
+        .get()
+      db.insert(attempts)
+        .values({
+          userId: 1,
+          questionId: question!.id,
+          quizId: quiz.id,
+          selectedOptionIds: [],
+          result: 'incorrect',
+          kind: 'revealed',
+        })
+        .run()
 
       expect(listSources(db)[0]!.attempts).toBe(1)
       expect(deleteSource(db, 1)).toBe('has-attempts')
@@ -565,7 +771,11 @@ describe('import', () => {
 
   describe('routes', () => {
     const post = (path: string, body: unknown) =>
-      createApi(db).request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      createApi(db).request(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
 
     it('previews, imports, lists and deletes', async () => {
       const preview = await post('/api/import/preview', { bank: bank([single()]) })

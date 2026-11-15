@@ -10,12 +10,12 @@ It should choose mode A. Compare its file with the expected one. The wording of 
 
 | Question | What it should do |
 |---|---|
-| All | Remove the page header, numbering and option letters. Report 10 in the source: 8 included, 2 omitted. Keep all the source's answer text as `source`: a sentence about one option on that option, and the rest on the question. Write no new text, so options the source doesn't explain stay blank. |
+| All | Remove the page header and numbering. The answers refer to options by letter, so every lettered question keeps its letters as each option's `label`, and each answer's text stays whole on its question, as `source`, starting with its answer letters. An answer that's only letters, such as "B.", gives no explanation. Report 10 in the source: 8 included, 2 omitted. Write no new text. |
 | 1 | `multi`, with both correct answers and "Choose two" kept. Backticks around `List<int>`, so it doesn't vanish. |
 | 2 | Line numbers kept, because question 6 needs them. Locked for "None of the above". |
 | 3 | True/False as `single`, locked, with False correct. |
 | 4 | Omitted: depends on an image. |
-| 5 | "Both A and B" rewritten to name the options, and locked. The explanation for C moved onto that option, without the letter. |
+| 5 | "Both A and B" kept as it is, because the options are labelled. The explanation stays whole on the question, letters and all. |
 | 6 | The code from question 2 copied in, so it stands alone. |
 | 7 | `free_form`, with the answer as `modelAnswerMd`. |
 | 8 | Omitted: not a supported type, and no answer given. |

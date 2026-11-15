@@ -1,8 +1,9 @@
 import clsx from 'clsx'
 import { PawPrint } from 'lucide-react'
 import { Popover } from 'radix-ui'
-import { iconName } from '../../shared/source-icons'
+import { iconName } from '@shared/source-icons'
 import { SOURCE_ICON_ART } from '../icons/source-icon-art.generated'
+import { useFeature } from '@/lib/features'
 
 const urls = new Map<string, string>()
 
@@ -19,12 +20,29 @@ function artUrl(key: string) {
 
 /**
  * A source's animal. Decorative: the source's name is always beside it. A source with no icon yet, or
- * one the set has since dropped, shows a paw print.
+ * one the set has since dropped, shows a paw print. Shows nothing when Settings turns icons off.
  */
-export function SourceIcon({ icon, className = 'size-5', muted = false }: { icon: string | null; className?: string; muted?: boolean }) {
+export function SourceIcon({
+  icon,
+  className = 'size-5',
+  muted = false,
+}: {
+  icon: string | null
+  className?: string
+  muted?: boolean
+}) {
+  const enabled = useFeature('sourceIcons')
+  if (!enabled) return null
   const url = icon ? artUrl(icon) : undefined
   if (!url) return <PawPrint className={clsx(className, 'flex-none text-ink-soft')} aria-hidden="true" />
-  return <img src={url} alt="" draggable={false} className={clsx(className, 'flex-none select-none', muted && 'opacity-50 grayscale')} />
+  return (
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      className={clsx(className, 'flex-none select-none', muted && 'opacity-50 grayscale')}
+    />
+  )
 }
 
 /**
@@ -72,7 +90,9 @@ export function SourceIconPicker({
                 onClick={() => onChange(key)}
                 className={clsx(
                   'flex cursor-pointer items-center justify-center rounded-md border-[1.5px] p-1.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-                  key === icon ? 'border-accent bg-accent-soft' : 'border-transparent hover:border-accent hover:bg-accent-soft',
+                  key === icon
+                    ? 'border-accent bg-accent-soft'
+                    : 'border-transparent hover:border-accent hover:bg-accent-soft',
                 )}
               >
                 <SourceIcon icon={key} className="size-8" />

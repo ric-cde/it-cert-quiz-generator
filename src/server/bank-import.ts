@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, asc, count, eq, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { SourceTrust } from '../shared/domain'
 import {
   type BankQuestion,
@@ -15,7 +15,6 @@ import {
   isChoosable,
   type PlannedCategory,
   type PlannedQuestion,
-  type SourceSummary,
 } from '../shared/import'
 import type { QuestionBank } from '../shared/question-bank'
 import {
@@ -29,18 +28,7 @@ import type { Db, Tx } from './db'
 import { countToReview } from './review'
 import { iconOptions } from './source-icons'
 import { remarkQuestion } from './tracking'
-import {
-  attempts,
-  categories,
-  categoryAliases,
-  chapters,
-  exams,
-  explanations,
-  options,
-  questions,
-  questionStats,
-  sources,
-} from './db/schema'
+import { categories, categoryAliases, chapters, exams, options, questions, sources } from './db/schema'
 
 type Reader = Db | Tx
 type QuestionRow = typeof questions.$inferSelect
@@ -52,13 +40,19 @@ type IncomingExplanation = { explanationMd?: string; explanationOrigin?: Origin 
 
 /**
  * Source text is ground truth, so text an AI wrote never replaces it. Anything else in the file
- * wins, and a blank in the file never wipes what's there.
+ * wins. A blank in the file removes source text, because the file is the source's own words and
+ * may have moved them, such as onto the question. It keeps AI-written text, which the file can't speak for.
  */
-export function mergeExplanation(existing: Explanation, incoming: IncomingExplanation): Explanation & { heldBack: boolean } {
-  if (incoming.explanationMd === undefined) return { ...existing, heldBack: false }
-  const origin = incoming.explanationOrigin ?? 'source'
+export function mergeExplanation(
+  existing: Explanation,
+  incoming: IncomingExplanation,
+): Explanation & { heldBack: boolean } {
   // Text with no recorded origin came from a file before origins were tracked, so it counts as source.
   const protectedText = existing.md !== null && existing.origin !== 'generated'
+  if (incoming.explanationMd === undefined) {
+    return protectedText ? { md: null, origin: null, heldBack: false } : { ...existing, heldBack: false }
+  }
+  const origin = incoming.explanationOrigin ?? 'source'
   if (origin === 'generated' && protectedText) {
     return { ...existing, heldBack: existing.md !== incoming.explanationMd }
   }
@@ -66,7 +60,9 @@ export function mergeExplanation(existing: Explanation, incoming: IncomingExplan
 }
 
 const questionExplanationOf = (question: BankQuestion): IncomingExplanation =>
-  question.type === 'free_form' ? {} : { explanationMd: question.explanationMd, explanationOrigin: question.explanationOrigin }
+  question.type === 'free_form'
+    ? {}
+    : { explanationMd: question.explanationMd, explanationOrigin: question.explanationOrigin }
 
 const contentHash = (question: BankQuestion) => createHash('sha256').update(questionFingerprint(question)).digest('hex')
 
@@ -102,12 +98,7 @@ function examCategoryList(rows: CategoryRow[]): ExamCategory[] {
  * Matches each category name in the file to the exam: exactly by name first, then by a name the
  * user mapped on an earlier import. Names that match neither wait for a choice, or its default.
  */
-function planCategories(
-  db: Reader,
-  examId: number,
-  bank: QuestionBank,
-  choices: Record<string, CategoryChoice>,
-) {
+function planCategories(db: Reader, examId: number, bank: QuestionBank, choices: Record<string, CategoryChoice>) {
   const rows = db.select().from(categories).where(eq(categories.examId, examId)).orderBy(asc(categories.id)).all()
   const list = examCategoryList(rows)
   const byId = new Map(list.map((item) => [item.id, item]))
@@ -177,8 +168,31 @@ const correctSet = (items: readonly { bodyMd: string; isCorrect: boolean }[]) =>
 
 const optionsOf = (question: BankQuestion) => (question.type === 'free_form' ? [] : question.options)
 
+/**
+ * Pairs each option in the file with the stored option it updates, so the IDs in past attempts keep
+ * meaning the same thing. Exact text wins first, then text that differs only by spacing or capitals,
+ * which keeps options such as `Long` and `long` apart. Stored options left over are unused.
+ */
+export function matchOptions<T extends { bodyMd: string }>(incoming: readonly { bodyMd: string }[], existing: T[]) {
+  const unused = [...existing]
+  const take = (test: (row: T) => boolean) => {
+    const index = unused.findIndex(test)
+    return index === -1 ? undefined : unused.splice(index, 1)[0]
+  }
+  const matches: (T | undefined)[] = incoming.map((option) => take((row) => row.bodyMd === option.bodyMd))
+  incoming.forEach((option, index) => {
+    matches[index] ??= take((row) => normaliseText(row.bodyMd) === normaliseText(option.bodyMd))
+  })
+  return { matches, unused }
+}
+
 /** The differences an update would make, in words. Empty means there's nothing to do. */
-function describeChanges(incoming: BankQuestion, existing: QuestionRow, existingOptions: OptionRow[], moved: { category: boolean; chapter: boolean }) {
+function describeChanges(
+  incoming: BankQuestion,
+  existing: QuestionRow,
+  existingOptions: OptionRow[],
+  moved: { category: boolean; chapter: boolean },
+) {
   const changes: string[] = []
   const live = existingOptions.filter((option) => !option.deletedAt)
   const incomingOptions = optionsOf(incoming)
@@ -191,20 +205,23 @@ function describeChanges(incoming: BankQuestion, existing: QuestionRow, existing
     changes.push('options')
   }
   if (correctSet(incomingOptions) !== correctSet(live)) changes.push('correct answer')
+  if (JSON.stringify(incomingOptions.map((o) => o.label ?? null)) !== JSON.stringify(live.map((o) => o.label))) {
+    changes.push('option labels')
+  }
 
   // Compare what would be saved, so text the file can't replace isn't counted as a change.
-  const byText = new Map(live.map((option) => [normaliseText(option.bodyMd), option]))
+  const { matches } = matchOptions(incomingOptions, live)
   const merges = [
     mergeExplanation(
       { md: existing.explanationMd, origin: existing.explanationOrigin },
       questionExplanationOf(incoming),
     ),
-    ...incomingOptions.map((option) => {
-      const match = byText.get(normaliseText(option.bodyMd))
+    ...incomingOptions.map((option, index) => {
+      const match = matches[index]
       return mergeExplanation({ md: match?.explanationMd ?? null, origin: match?.explanationOrigin ?? null }, option)
     }),
   ]
-  const before = [existing.explanationMd, ...incomingOptions.map((o) => byText.get(normaliseText(o.bodyMd))?.explanationMd ?? null)]
+  const before = [existing.explanationMd, ...matches.map((match) => match?.explanationMd ?? null)]
   if (merges.some((merge, index) => merge.md !== before[index])) changes.push('explanations')
   if (moved.category) changes.push('category')
   if (moved.chapter) changes.push('chapter')
@@ -377,32 +394,31 @@ export function previewImport(db: Db, raw: unknown): ImportPreview {
 }
 
 function saveOptions(tx: Tx, questionId: number, incoming: BankQuestion, existing: OptionRow[]) {
-  const unused = new Map(existing.map((option) => [normaliseText(option.bodyMd), option]))
+  const { matches, unused } = matchOptions(optionsOf(incoming), existing)
 
   optionsOf(incoming).forEach((option, position) => {
-    const key = normaliseText(option.bodyMd)
-    const match = unused.get(key)
-    unused.delete(key)
+    const match = matches[position]
     const merged = mergeExplanation(
       { md: match?.explanationMd ?? null, origin: match?.explanationOrigin ?? null },
       option,
     )
     const explanation = { explanationMd: merged.md, explanationOrigin: merged.origin }
+    const fields = { bodyMd: option.bodyMd, label: option.label ?? null, isCorrect: option.isCorrect }
     if (match) {
       // The same row, so the option IDs recorded in past attempts still mean the same thing.
       tx.update(options)
-        .set({ bodyMd: option.bodyMd, isCorrect: option.isCorrect, position, deletedAt: null, ...explanation })
+        .set({ ...fields, position, deletedAt: null, ...explanation })
         .where(eq(options.id, match.id))
         .run()
     } else {
       tx.insert(options)
-        .values({ questionId, bodyMd: option.bodyMd, isCorrect: option.isCorrect, position, ...explanation })
+        .values({ questionId, ...fields, position, ...explanation })
         .run()
     }
   })
 
   const now = new Date()
-  for (const option of unused.values()) {
+  for (const option of unused) {
     if (!option.deletedAt) tx.update(options).set({ deletedAt: now }).where(eq(options.id, option.id)).run()
   }
 }
@@ -427,7 +443,11 @@ export function commitImport(
     }
     const sourceId =
       result.sourceId ??
-      tx.insert(sources).values({ examId, name: bank.source.name, origin: bank.source.origin, ...sourceDetails }).returning().get().id
+      tx
+        .insert(sources)
+        .values({ examId, name: bank.source.name, origin: bank.source.origin, ...sourceDetails })
+        .returning()
+        .get().id
     if (result.sourceId && Object.keys(sourceDetails).length > 0) {
       tx.update(sources).set(sourceDetails).where(eq(sources.id, sourceId)).run()
     }
@@ -437,10 +457,15 @@ export function commitImport(
       if ('map' in choice) {
         tx.insert(categoryAliases)
           .values({ examId, name, categoryId: choice.map })
-          .onConflictDoUpdate({ target: [categoryAliases.examId, categoryAliases.name], set: { categoryId: choice.map } })
+          .onConflictDoUpdate({
+            target: [categoryAliases.examId, categoryAliases.name],
+            set: { categoryId: choice.map },
+          })
           .run()
       } else {
-        tx.delete(categoryAliases).where(and(eq(categoryAliases.examId, examId), eq(categoryAliases.name, name))).run()
+        tx.delete(categoryAliases)
+          .where(and(eq(categoryAliases.examId, examId), eq(categoryAliases.name, name)))
+          .run()
       }
     }
     // A name kept as it is becomes an unofficial category, when a question first needs it.
@@ -543,85 +568,5 @@ export function commitImport(
     // A trial that added nothing, such as a file of only duplicates, shouldn't leave an empty source.
     if (!result.sourceId && chapterIds.size === 0) tx.delete(sources).where(eq(sources.id, sourceId)).run()
     return { ...outcome, toReview: countToReview(tx, sourceId) }
-  })
-}
-
-export function listSources(db: Db): SourceSummary[] {
-  const countQuestions = (where: SQL | undefined) =>
-    db
-      .select({ value: count() })
-      .from(questions)
-      .innerJoin(chapters, eq(questions.chapterId, chapters.id))
-      .where(where)
-      .get()!.value
-
-  return db
-    .select({
-      id: sources.id,
-      exam: exams.name,
-      name: sources.name,
-      origin: sources.origin,
-      trust: sources.trust,
-      reference: sources.reference,
-      icon: sources.icon,
-    })
-    .from(sources)
-    .innerJoin(exams, eq(sources.examId, exams.id))
-    .orderBy(asc(exams.id), asc(sources.name))
-    .all()
-    .map((source) => {
-      const live = and(eq(chapters.sourceId, source.id), isNull(questions.deletedAt))
-      return {
-        ...source,
-        chapters: db.select({ value: count() }).from(chapters).where(eq(chapters.sourceId, source.id)).get()!.value,
-        questions: countQuestions(live),
-        flagged: countQuestions(and(live, isNotNull(questions.flaggedAt))),
-        toReview: countToReview(db, source.id),
-        attempts: db
-          .select({ value: count() })
-          .from(attempts)
-          .innerJoin(questions, eq(attempts.questionId, questions.id))
-          .innerJoin(chapters, eq(questions.chapterId, chapters.id))
-          .where(eq(chapters.sourceId, source.id))
-          .get()!.value,
-      }
-    })
-}
-
-/**
- * Removes a source completely, for clearing out a trial import. A source with attempts is refused,
- * because attempts are history that must survive. Stage 8 adds soft deletion for those.
- */
-export function deleteSource(db: Db, id: number): 'deleted' | 'not-found' | 'has-attempts' {
-  return db.transaction((tx) => {
-    if (!tx.select().from(sources).where(eq(sources.id, id)).get()) return 'not-found'
-
-    const chapterIds = tx
-      .select({ id: chapters.id })
-      .from(chapters)
-      .where(eq(chapters.sourceId, id))
-      .all()
-      .map((chapter) => chapter.id)
-    const questionIds = chapterIds.length
-      ? tx
-          .select({ id: questions.id })
-          .from(questions)
-          .where(inArray(questions.chapterId, chapterIds))
-          .all()
-          .map((question) => question.id)
-      : []
-
-    if (questionIds.length > 0) {
-      if (tx.select().from(attempts).where(inArray(attempts.questionId, questionIds)).limit(1).get()) {
-        return 'has-attempts'
-      }
-      tx.delete(options).where(inArray(options.questionId, questionIds)).run()
-      tx.delete(explanations).where(inArray(explanations.questionId, questionIds)).run()
-      tx.delete(questionStats).where(inArray(questionStats.questionId, questionIds)).run()
-      tx.delete(questions).where(inArray(questions.id, questionIds)).run()
-    }
-    tx.delete(chapters).where(eq(chapters.sourceId, id)).run()
-    tx.delete(sources).where(eq(sources.id, id)).run()
-    return 'deleted'
   })
 }

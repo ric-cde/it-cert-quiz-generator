@@ -26,8 +26,7 @@ export function unknownCategories(bank: QuestionBank, exam: ExamCatalogue[number
 }
 
 export type BankValidation =
-  | { ok: true; bank: QuestionBank; warnings: BankIssue[] }
-  | { ok: false; problems: BankIssue[] }
+  { ok: true; bank: QuestionBank; warnings: BankIssue[] } | { ok: false; problems: BankIssue[] }
 
 type Question = QuestionBank['chapters'][number]['questions'][number]
 
@@ -41,7 +40,9 @@ function pathLocation(raw: unknown, path: PropertyKey[]) {
   const [first, chapterIndex, second, questionIndex, ...rest] = path
   if (first !== 'chapters' || typeof chapterIndex !== 'number') return path.join('.') || 'The file'
 
-  const chapter = (raw as { chapters: { name?: unknown; questions?: { externalId?: string }[] }[] }).chapters[chapterIndex]
+  const chapter = (raw as { chapters: { name?: unknown; questions?: { externalId?: string }[] }[] }).chapters[
+    chapterIndex
+  ]
   const chapterName = typeof chapter?.name === 'string' ? chapter.name : `Chapter ${chapterIndex + 1}`
   if (second !== 'questions' || typeof questionIndex !== 'number') {
     return [chapterName, second].filter(Boolean).join(', ')
@@ -69,7 +70,8 @@ export const normaliseText = (text: string) => text.trim().replace(/\s+/g, ' ').
 
 /** Two questions with the same fingerprint are the same question, whatever order the options are in. */
 export function questionFingerprint(question: Question) {
-  const options = question.type === 'free_form' ? [] : question.options.map((option) => normaliseText(option.bodyMd)).sort()
+  const options =
+    question.type === 'free_form' ? [] : question.options.map((option) => normaliseText(option.bodyMd)).sort()
   return JSON.stringify([normaliseText(question.bodyMd), options])
 }
 
@@ -98,7 +100,46 @@ function fenceProblems(markdown: string) {
 
 function allText(question: Question) {
   if (question.type === 'free_form') return [question.bodyMd, question.modelAnswerMd]
-  return [question.bodyMd, ...question.options.flatMap((option) => [option.bodyMd, option.explanationMd ?? ''])]
+  return [
+    question.bodyMd,
+    question.explanationMd ?? '',
+    ...question.options.flatMap((option) => [option.bodyMd, option.explanationMd ?? '']),
+  ]
+}
+
+// "option C", "options A and F", "Options B, E, and G": the labels an explanation names.
+const LABEL_REFERENCE =
+  /\b(?:[Oo]ptions?|[Aa]nswers?|[Cc]hoices?)\s+([A-Z0-9]{1,4}(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)[A-Z0-9]{1,4})*)\b/g
+// A source's answer key at the start of its explanation, such as "A, D, F. A for-each loop...".
+const LEADING_ANSWER = /^\s*([A-Z0-9]{1,4}(?:\s*,\s*[A-Z0-9]{1,4})*)\.(?:\s|$)/
+const labelsIn = (text: string) => text.split(/[^A-Z0-9]+/).filter(Boolean)
+
+type MultipleChoice = Exclude<Question, { type: 'free_form' }>
+
+/** For options labelled as in the source: checks the explanation's letters against the options. */
+function labelWarnings(question: MultipleChoice, prose: string) {
+  const warnings: string[] = []
+  const labels = new Set(question.options.map((option) => option.label))
+  const named = new Set([...prose.matchAll(LABEL_REFERENCE)].flatMap((match) => labelsIn(match[1]!)))
+  for (const label of named) {
+    if (!labels.has(label)) warnings.push(`The explanation refers to option ${label}, but no option has that label.`)
+  }
+
+  const leading = question.explanationMd?.match(LEADING_ANSWER)?.[1]
+  if (leading) {
+    const given = labelsIn(leading).sort().join(', ')
+    const marked = question.options
+      .filter((option) => option.isCorrect)
+      .map((option) => option.label ?? '')
+      .sort()
+      .join(', ')
+    if (given !== marked) {
+      warnings.push(
+        `The explanation starts with the answer ${given}, but the options marked correct are ${marked}. Check the answer key was matched properly.`,
+      )
+    }
+  }
+  return warnings
 }
 
 const IMAGE_REFERENCE =
@@ -153,18 +194,28 @@ export function questionWarnings(question: Question): string[] {
   }
 
   const optionProse = options.map((option) => proseOf(option.bodyMd)).join('\n')
-  const explanations = options.map((option) => proseOf(option.explanationMd ?? '')).join('\n')
-  if (
-    /\b(?:options?|answers?|choices?)\s+[A-H]\b/.test(`${body}\n${explanations}`) ||
+  const explanations = [question.explanationMd ?? '', ...options.map((option) => option.explanationMd ?? '')]
+    .map(proseOf)
+    .join('\n')
+  if (options.some((option) => option.label !== undefined)) {
+    warnings.push(...labelWarnings(question, `${body}\n${explanations}`))
+  } else if (
+    /\b(?:[Oo]ptions?|[Aa]nswers?|[Cc]hoices?)\s+[A-H]\b/.test(`${body}\n${explanations}`) ||
     /\b[A-H]\s+(?:and|or|&)\s+[A-H]\b/.test(optionProse)
   ) {
-    warnings.push('This refers to an option by letter, but options have no letters and get shuffled. Refer to its content instead.')
+    warnings.push(
+      'This refers to an option by letter, but options have no letters and get shuffled. Refer to its content instead.',
+    )
   }
   if (
     !question.lockOptionOrder &&
-    /\b(?:all|none|any|both|neither)\s+of\s+(?:the\s+)?(?:above|these|previous)\b|\b(?:the\s+)?above\b/i.test(optionProse)
+    /\b(?:all|none|any|both|neither)\s+of\s+(?:the\s+)?(?:above|these|previous)\b|\b(?:the\s+)?above\b/i.test(
+      optionProse,
+    )
   ) {
-    warnings.push('An option seems to depend on the position of the others, such as "All of the above". Set lockOptionOrder.')
+    warnings.push(
+      'An option seems to depend on the position of the others, such as "All of the above". Set lockOptionOrder.',
+    )
   }
   if (/\bthe\s+correct\s+answer\s+is\b|\bcorrect\s+answer\s*:|^\s*answer\s*:/im.test(`${body}\n${optionProse}`)) {
     warnings.push('The answer seems to be included in the question or option text.')
@@ -178,10 +229,14 @@ export function questionWarnings(question: Question): string[] {
     const explanation = option.explanationMd.trim()
     const label = option.bodyMd.slice(0, 40)
     if (option.isCorrect && /^(?:incorrect|wrong|not correct)\b/i.test(explanation)) {
-      warnings.push(`A correct option has an explanation calling it wrong, so the answer may be misaligned: "${label}".`)
+      warnings.push(
+        `A correct option has an explanation calling it wrong, so the answer may be misaligned: "${label}".`,
+      )
     }
     if (!option.isCorrect && /^(?:correct|right)\b/i.test(explanation)) {
-      warnings.push(`A wrong option has an explanation calling it correct, so the answer may be misaligned: "${label}".`)
+      warnings.push(
+        `A wrong option has an explanation calling it correct, so the answer may be misaligned: "${label}".`,
+      )
     }
   }
   return warnings
@@ -263,7 +318,9 @@ export function validateBank(raw: unknown, catalogue: ExamCatalogue): BankValida
     const names = catalogue.map((item) => `"${item.name}"`).join(', ')
     return {
       ok: false,
-      problems: [{ location: 'exam', message: `No exam is called "${bank.exam}". It must be exactly one of: ${names}.` }],
+      problems: [
+        { location: 'exam', message: `No exam is called "${bank.exam}". It must be exactly one of: ${names}.` },
+      ],
     }
   }
 

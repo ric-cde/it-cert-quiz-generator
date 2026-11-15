@@ -1,6 +1,5 @@
-import type { QuizResults } from '../../shared/quiz'
-
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+import type { QuizResults } from '@shared/quiz'
+import { plural } from '@/lib/quiz-words'
 
 /** A skipped or revealed question counts against the score. One you never reached doesn't. */
 export function quizScore({ correct, incorrect, revealed, skipped }: QuizResults) {

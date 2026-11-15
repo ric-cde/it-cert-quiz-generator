@@ -1,13 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link, Outlet } from 'react-router'
-import { api } from '@/lib/api'
-import { readJson } from '@/lib/http'
+import { Link, Outlet, useMatch } from 'react-router'
+import { useMe } from '@/lib/me'
 
 export function AppShell() {
-  const me = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => readJson(await api.api.me.$get()),
-  })
+  const { isAdmin } = useMe()
+  // Only where you choose what to do, so they stay out of the way during a quiz.
+  const onHome = useMatch('/') !== null
+  const onTakeExam = useMatch('/exam/:id') !== null
 
   return (
     // A size container, so a page can stretch something to the full width of the window with `cqw`,
@@ -26,10 +24,11 @@ export function AppShell() {
       </main>
       <footer className="border-t border-line">
         <div className="mx-auto flex min-h-13 max-w-5xl gap-4 px-4 py-4 text-xs">
-          {me.data?.role === 'admin' && (
+          {isAdmin && (onHome || onTakeExam) && (
             <>
               <Link to="/dev/data">Data inspector</Link>
               <Link to="/dev/components">Component gallery</Link>
+              <Link to="/dev/questions">Question viewer</Link>
             </>
           )}
         </div>

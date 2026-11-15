@@ -20,7 +20,10 @@ test.describe('data inspector', () => {
   test('is reached from the footer and shows the seeded categories, across pages', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('link', { name: 'Data inspector' }).click()
-    await page.getByRole('navigation', { name: 'Tables' }).getByRole('link', { name: /^categories/ }).click()
+    await page
+      .getByRole('navigation', { name: 'Tables' })
+      .getByRole('link', { name: /^categories/ })
+      .click()
 
     await expect(page).toHaveURL(/\/dev\/data\/categories$/)
     await expect(page.getByRole('cell', { name: 'Controlling Program Flow' })).toBeVisible()
@@ -97,7 +100,10 @@ test.describe('component gallery', () => {
 
   test('a revealed question also has no accessibility violations', async ({ page }) => {
     await page.goto('/dev/components')
-    await page.locator('#try-it').getByRole('button', { name: /^Reveal answer/ }).click()
+    await page
+      .locator('#try-it')
+      .getByRole('button', { name: /^Reveal answer/ })
+      .click()
     await expect(page.locator('#try-it [data-revealed]')).toBeVisible()
     await expect(page.locator('#try-it [data-state="correct-missed"]').first()).toBeVisible()
     // Let the background finish changing, or the check sees a colour halfway through.
@@ -153,7 +159,11 @@ test.describe('importing a question bank', () => {
 
     await page.goto('/import')
     // The mock's question 9 has a wrong answer in its source, so it's waiting for review.
-    await page.getByRole('listitem').filter({ hasText: 'Mock Java practice set' }).getByRole('link', { name: '1 question to review' }).click()
+    await page
+      .getByRole('listitem')
+      .filter({ hasText: 'Mock Java practice set' })
+      .getByRole('link', { name: '1 question to review' })
+      .click()
     await expect(page.getByText(/string concatenation runs left to right/)).toBeVisible()
     await expect(page.locator('.shiki').first()).toBeVisible()
     const review = await new AxeBuilder({ page }).analyze()
@@ -175,7 +185,9 @@ test.describe('importing a question bank', () => {
     await page.getByLabel(/Choose a question bank file/).setInputFiles({
       name: 'bad.json',
       mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify({ formatVersion: 1, exam: 'Nope', source: { name: 'x', origin: 'upload' }, chapters: [] })),
+      buffer: Buffer.from(
+        JSON.stringify({ formatVersion: 1, exam: 'Nope', source: { name: 'x', origin: 'upload' }, chapters: [] }),
+      ),
     })
     await expect(page.getByRole('heading', { name: /can't be imported yet/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Import/ })).toBeHidden()
@@ -187,7 +199,9 @@ test.describe('importing a question bank', () => {
     await page.getByLabel(/Choose a question bank file/).setInputFiles(MOCK_BANK)
     await page.getByText('Set 1: Collections and Language Basics').click()
     await expect(page.getByRole('article').first()).toBeVisible()
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
     expect(overflow).toBeLessThanOrEqual(0)
   })
 })

@@ -1,20 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, ChevronDown, FileUp, ListChecks } from 'lucide-react'
+import { ArrowRight, FileUp, ListChecks, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { buttonClass } from '@/components/Button'
 import { ExamCard } from '@/components/ExamCard'
-import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 import { readJson } from '@/lib/http'
+import { useMe } from '@/lib/me'
 import { formatStarted } from '@/lib/quiz-words'
-import type { ExamStatus } from '../../shared/selection'
+import type { ExamStatus } from '@shared/home'
+import { ErrorText, PageLoading } from '@/components/Notices'
+import { Disclosure } from '@/components/Disclosure'
+import { SectionLabel } from '@/components/SectionLabel'
 
 /** Subjects, with their exams below them, each exam's sources with progress, and any unfinished quiz. */
 export function HomePage() {
   const home = useQuery({ queryKey: ['home'], queryFn: async () => readJson(await api.api.home.$get()) })
-  const me = useQuery({ queryKey: ['me'], queryFn: async () => readJson(await api.api.me.$get()) })
-  const canEdit = me.data?.role === 'admin' || me.data?.role === 'editor'
+  const { canEdit } = useMe()
   const queryClient = useQueryClient()
   const [showAbandoned, setShowAbandoned] = useState(false)
 
@@ -25,13 +27,7 @@ export function HomePage() {
   })
   const onStatus = (examId: number) => (status: ExamStatus) => changeStatus.mutate({ examId, status })
 
-  if (home.isPending) {
-    return (
-      <p>
-        <Spinner />
-      </p>
-    )
-  }
+  if (home.isPending) return <PageLoading />
   if (home.isError) {
     return (
       <p role="alert" className="font-semibold text-wrong-ink">
@@ -46,16 +42,21 @@ export function HomePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-2xl">Your exams</h1>
-        {canEdit && (
-          <nav aria-label="Manage questions" className="flex flex-wrap gap-2">
-            <Link to="/import" className={buttonClass({ size: 'sm', variant: 'ghost' })}>
-              <FileUp className="size-4" aria-hidden="true" /> Import
-            </Link>
-            <Link to="/review" className={buttonClass({ size: 'sm', variant: 'ghost' })}>
-              <ListChecks className="size-4" aria-hidden="true" /> Review flagged
-            </Link>
-          </nav>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (
+            <nav aria-label="Manage questions" className="flex flex-wrap gap-2">
+              <Link to="/import" className={buttonClass({ size: 'sm', variant: 'ghost' })}>
+                <FileUp className="size-4" aria-hidden="true" /> Import
+              </Link>
+              <Link to="/review" className={buttonClass({ size: 'sm', variant: 'ghost' })}>
+                <ListChecks className="size-4" aria-hidden="true" /> Review flagged
+              </Link>
+            </nav>
+          )}
+          <Link to="/settings" className={buttonClass({ size: 'sm', variant: 'ghost' })}>
+            <Settings className="size-4" aria-hidden="true" /> Settings
+          </Link>
+        </div>
       </div>
 
       {unfinished.length > 0 && (
@@ -98,9 +99,7 @@ export function HomePage() {
 
       {subjects.map((subject) => (
         <section key={subject.id} aria-labelledby={`subject-${subject.id}`}>
-          <h2 id={`subject-${subject.id}`} className="mb-3 text-sm font-semibold tracking-wide text-ink-soft uppercase">
-            {subject.name}
-          </h2>
+          <SectionLabel id={`subject-${subject.id}`}>{subject.name}</SectionLabel>
           <div className="space-y-4">
             {subject.exams.map((exam) => (
               <ExamCard key={exam.id} exam={exam} onStatus={onStatus(exam.id)} />
@@ -109,17 +108,11 @@ export function HomePage() {
         </section>
       ))}
 
-      {changeStatus.isError && (
-        <p role="alert" className="text-sm font-semibold text-wrong-ink">
-          Couldn't change that exam: {changeStatus.error.message}
-        </p>
-      )}
+      {changeStatus.isError && <ErrorText>Couldn't change that exam: {changeStatus.error.message}</ErrorText>}
 
       {passed.length > 0 && (
         <section aria-labelledby="passed-heading">
-          <h2 id="passed-heading" className="mb-3 text-sm font-semibold tracking-wide text-ink-soft uppercase">
-            Passed
-          </h2>
+          <SectionLabel id="passed-heading">Passed</SectionLabel>
           <div className="space-y-4">
             {passed.map((exam) => (
               <ExamCard key={exam.id} exam={exam} onStatus={onStatus(exam.id)} />
@@ -130,26 +123,16 @@ export function HomePage() {
 
       {abandoned.length > 0 && (
         <section aria-label="Abandoned exams">
-          <button
-            type="button"
-            aria-expanded={showAbandoned}
-            aria-controls="abandoned-exams"
-            onClick={() => setShowAbandoned((value) => !value)}
-            className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md bg-sunken px-4 py-2.5 text-left text-sm font-semibold text-ink-soft hover:text-ink"
+          <Disclosure
+            summary={`Abandoned exams (${abandoned.length})`}
+            open={showAbandoned}
+            onToggle={() => setShowAbandoned((value) => !value)}
+            contentClassName="space-y-4"
           >
-            Abandoned exams ({abandoned.length})
-            <ChevronDown
-              className={`size-4 transition-transform duration-150 ${showAbandoned ? 'rotate-180' : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-          {showAbandoned && (
-            <div id="abandoned-exams" className="mt-3 animate-rise space-y-4">
-              {abandoned.map((exam) => (
-                <ExamCard key={exam.id} exam={exam} onStatus={onStatus(exam.id)} />
-              ))}
-            </div>
-          )}
+            {abandoned.map((exam) => (
+              <ExamCard key={exam.id} exam={exam} onStatus={onStatus(exam.id)} />
+            ))}
+          </Disclosure>
         </section>
       )}
     </div>

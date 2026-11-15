@@ -1,7 +1,9 @@
 import clsx from 'clsx'
-import type { CategoryChoice, CategoryStatus, ExamCategory, PlannedCategory } from '../../shared/import'
-import { isChoosable } from '../../shared/import'
+import { BadgeCheck } from 'lucide-react'
+import type { CategoryChoice, CategoryStatus, ExamCategory, PlannedCategory } from '@shared/import'
+import { isChoosable } from '@shared/import'
 import { inputClass } from './Field'
+import { Card } from './Card'
 
 const KEEP = 'keep'
 
@@ -21,12 +23,14 @@ function Status({ status }: { status: CategoryStatus }) {
   return (
     <span
       className={clsx(
-        'rounded-full border px-2 py-px text-xs font-bold whitespace-nowrap',
+        'inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs font-bold whitespace-nowrap',
         official && 'border-line-strong text-ink-soft',
         !official && status !== 'new' && 'border-accent text-accent-strong',
         status === 'new' && 'border-amber bg-amber-soft text-amber-ink',
       )}
     >
+      {/* The same badge an official category's tile carries on the take-exam screen. */}
+      {official && <BadgeCheck className="size-3.5 shrink-0 text-accent" aria-hidden="true" />}
       {statusLabels[status]}
     </span>
   )
@@ -53,7 +57,7 @@ export function CategoryList({
   const unofficial = examCategories.filter((item) => !item.official)
 
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+    <Card as="ul" padding="none" className="divide-y divide-line">
       {categories.map((category) => {
         const choice = choices[category.name]
         const value = !choice || 'keep' in choice ? KEEP : String(choice.map)
@@ -107,6 +111,6 @@ export function CategoryList({
           </li>
         )
       })}
-    </ul>
+    </Card>
   )
 }

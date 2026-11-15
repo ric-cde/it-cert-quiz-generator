@@ -1,7 +1,9 @@
 import clsx from 'clsx'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
-import type { CellValue, InspectorRow, SortDir } from '../../shared/inspector'
+import type { CellValue, InspectorRow, SortDir } from '@shared/inspector'
 import { Button } from './Button'
+import { plural } from '@/lib/quiz-words'
+import { Card } from './Card'
 
 const LONG_VALUE = 80
 
@@ -21,7 +23,9 @@ export function DataCell({ value }: { value: CellValue | undefined }) {
         <span className={clsx(mono && 'font-mono')}>{text.slice(0, LONG_VALUE)}…</span>{' '}
         <span className="text-ink-soft">({text.length} characters)</span>
       </summary>
-      <p className={clsx(mono && 'font-mono', 'mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap break-words')}>{text}</p>
+      <p className={clsx(mono && 'font-mono', 'mt-1 max-h-64 overflow-y-auto break-words whitespace-pre-wrap')}>
+        {text}
+      </p>
     </details>
   )
 }
@@ -55,7 +59,7 @@ export function DataTable({
   const SortIcon = dir === 'asc' ? ArrowUp : ArrowDown
 
   return (
-    <div className="rounded-lg border border-line bg-surface shadow-card">
+    <Card padding="none">
       {/* Focusable so keyboard users can scroll it sideways. */}
       <div role="region" aria-label={label} tabIndex={0} className="overflow-x-auto rounded-t-lg">
         <table className="w-full border-collapse text-sm">
@@ -102,9 +106,7 @@ export function DataTable({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2 text-sm text-ink-soft">
-        <span className="tabular-nums">
-          {total} {total === 1 ? 'row' : 'rows'}
-        </span>
+        <span className="tabular-nums">{plural(total, 'row')}</span>
         <nav aria-label={`Pages of ${label}`} className="flex items-center gap-2">
           <Button
             size="sm"
@@ -131,6 +133,6 @@ export function DataTable({
           </Button>
         </nav>
       </div>
-    </div>
+    </Card>
   )
 }

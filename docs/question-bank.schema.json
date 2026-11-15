@@ -96,7 +96,7 @@
                     "explanationMd": {
                       "type": "string",
                       "pattern": "\\S",
-                      "description": "Optional text about the question as a whole, shown below the options after answering. Use it for a source's single explanation that covers the question rather than one option. Per-option text can be used as well, or instead."
+                      "description": "Optional text about the question as a whole, shown below the options after answering. Use it for a source's single explanation that covers the question rather than one option, and for one that refers to options by their labels. Per-option text can be used as well, or instead."
                     },
                     "explanationOrigin": {
                       "type": "string",
@@ -121,10 +121,15 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "label": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9]{1,4}$",
+                            "description": "Optional. The letter or number the option has in the source, such as \"A\", without punctuation. Give labels only when the source's explanation refers to options by them, so that it can be kept in its own words. Label every option of the question or none, each one different. The label is shown beside the option. Labelled options keep the source's order unless the user chooses to shuffle them, and then each label moves with its option."
+                          },
                           "bodyMd": {
                             "type": "string",
                             "pattern": "\\S",
-                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\", because options get shuffled."
+                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\": use `label` for those if they're needed."
                           },
                           "isCorrect": {
                             "type": "boolean",
@@ -199,7 +204,7 @@
                     "explanationMd": {
                       "type": "string",
                       "pattern": "\\S",
-                      "description": "Optional text about the question as a whole, shown below the options after answering. Use it for a source's single explanation that covers the question rather than one option. Per-option text can be used as well, or instead."
+                      "description": "Optional text about the question as a whole, shown below the options after answering. Use it for a source's single explanation that covers the question rather than one option, and for one that refers to options by their labels. Per-option text can be used as well, or instead."
                     },
                     "explanationOrigin": {
                       "type": "string",
@@ -224,10 +229,15 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "label": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9]{1,4}$",
+                            "description": "Optional. The letter or number the option has in the source, such as \"A\", without punctuation. Give labels only when the source's explanation refers to options by them, so that it can be kept in its own words. Label every option of the question or none, each one different. The label is shown beside the option. Labelled options keep the source's order unless the user chooses to shuffle them, and then each label moves with its option."
+                          },
                           "bodyMd": {
                             "type": "string",
                             "pattern": "\\S",
-                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\", because options get shuffled."
+                            "description": "The answer text in Markdown. Leave out labels such as \"A.\" or \"1)\": use `label` for those if they're needed."
                           },
                           "isCorrect": {
                             "type": "boolean",
@@ -361,5 +371,5 @@
   ],
   "additionalProperties": false,
   "title": "Question bank",
-  "description": "One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Options are shuffled, so never refer to one by letter or position. Beyond this schema, externalId values and chapter names must each be unique within the file, and categories should use the exam's own names where one fits. Output only the JSON."
+  "description": "One source of exam questions for a quiz app. Text is Markdown, and raw HTML is not rendered. Convert questions faithfully: keep their wording, code and any existing explanations, and never guess an answer the source does not give. Leave out any question whose correct answer is unknown, and list it in omitted. Options are shuffled, so never refer to one by letter or position, unless the options carry their source's labels. Beyond this schema, externalId values and chapter names must each be unique within the file, and categories should use the exam's own names where one fits. Output only the JSON."
 }

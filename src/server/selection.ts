@@ -2,16 +2,20 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { buildPool, type Pool, type PracticeData, type QuestionHistory } from '../shared/practice'
 import { isRandom, type Selection } from '../shared/selection'
 import type { Tx } from './db'
-import { categories, chapters, exams, questions, questionStats, sources, subjects } from './db/schema'
+import { categories, chapters, exams, questions, questionStars, questionStats, sources, subjects } from './db/schema'
 
 type Reader = Pick<Tx, 'select'>
 
-const historyOf = (stats: { attemptCount: number | null; latestCorrect: boolean | null; everCorrect: boolean | null }): QuestionHistory =>
+const historyOf = (stats: {
+  attemptCount: number | null
+  latestCorrect: boolean | null
+  everCorrect: boolean | null
+}): QuestionHistory =>
   !stats.attemptCount ? 'new' : stats.latestCorrect ? 'correct' : stats.everCorrect ? 'lapsed' : 'incorrect'
 
 /**
  * An exam's question metadata for the take-exam screen, which works out every count from it. No
- * question text leaves the server here, only ids, places and your history.
+ * question text leaves the server here, only ids, places, your history and your stars.
  */
 export function practiceData(db: Reader, userId: number, examId: number): PracticeData | null {
   const exam = db
@@ -40,11 +44,13 @@ export function practiceData(db: Reader, userId: number, examId: number): Practi
       attemptCount: questionStats.attemptCount,
       latestCorrect: questionStats.latestCorrect,
       everCorrect: questionStats.everCorrect,
+      starredAt: questionStars.createdAt,
     })
     .from(questions)
     .innerJoin(chapters, eq(questions.chapterId, chapters.id))
     .innerJoin(sources, eq(chapters.sourceId, sources.id))
     .leftJoin(questionStats, and(eq(questionStats.questionId, questions.id), eq(questionStats.userId, userId)))
+    .leftJoin(questionStars, and(eq(questionStars.questionId, questions.id), eq(questionStars.userId, userId)))
     .where(and(eq(sources.examId, examId), isNull(questions.deletedAt), isNull(questions.flaggedAt)))
     .orderBy(asc(questions.id))
     .all()
@@ -71,6 +77,7 @@ export function practiceData(db: Reader, userId: number, examId: number): Practi
       categoryId: row.categoryId,
       history: historyOf(row),
       ...(row.type === 'free_form' ? { freeForm: true as const } : {}),
+      ...(row.starredAt ? { starred: true as const } : {}),
     })),
   }
 }
@@ -150,6 +157,14 @@ export function describeSelection(db: Reader, selection: Selection): string {
     .where(inArray(chapters.id, selection.chapterIds))
     .all()
   const sourceIds = [...selection.sourceIds, ...chapterRows.map((row) => row.sourceId)]
-  const sourceRows = db.select({ id: sources.id, name: sources.name }).from(sources).where(inArray(sources.id, sourceIds)).all()
-  return nameSelection(selection, { categories: [...categoryRows, ...parents], sources: sourceRows, chapters: chapterRows })
+  const sourceRows = db
+    .select({ id: sources.id, name: sources.name })
+    .from(sources)
+    .where(inArray(sources.id, sourceIds))
+    .all()
+  return nameSelection(selection, {
+    categories: [...categoryRows, ...parents],
+    sources: sourceRows,
+    chapters: chapterRows,
+  })
 }

@@ -1,27 +1,27 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { ArrowLeft } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import {
-  FilterField,
-  FilterPanel,
-  LiveCount,
-  type MaxQuestions,
-  MaxQuestionsPicker,
-  nextMaxQuestions,
-  Segmented,
-} from '@/components/Filters'
-import { Spinner } from '@/components/Spinner'
+import { FilterField, FilterPanel } from '@/components/FilterPanel'
+import { LiveCount } from '@/components/LiveCount'
+import { type MaxQuestions, MaxQuestionsPicker, nextMaxQuestions } from '@/components/MaxQuestions'
+import { Segmented } from '@/components/Segmented'
+import { StarButton } from '@/components/StarButton'
+import { ErrorText, PageError, PageLoading } from '@/components/Notices'
 import { RandomTile, SourceTile, Tile, TileGrid } from '@/components/Tile'
 import { api } from '@/lib/api'
 import { HttpError, readJson } from '@/lib/http'
 import { FEEDBACK_NAMES, SORT_OPTIONS, STATUS_OPTIONS } from '@/lib/quiz-words'
 import { readChoices, saveChoices, type TakeExamChoices } from '@/lib/remembered'
-import { isForShortcuts } from '@/lib/shortcuts'
-import { DEFAULT_QUIZ_DEFAULTS, type Feedback, FEEDBACK_MODES, type QuizSort } from '../../shared/domain'
-import { buildPool, practiceView, quizMix, selectQuestions } from '../../shared/practice'
-import { isRandom, type Selection, type Status, STATUSES } from '../../shared/selection'
+import { useSettings } from '@/lib/settings'
+import { useShortcuts } from '@/lib/shortcuts'
+import { DEFAULT_QUIZ_DEFAULTS, type Feedback, FEEDBACK_MODES, type QuizSort } from '@shared/domain'
+import { buildPool, practiceView, quizMix, selectQuestions } from '@shared/practice'
+import { isRandom, type Selection, type Status, STATUSES } from '@shared/selection'
+import { Card } from '@/components/Card'
+import { ExamIcon } from '@/components/ExamIcon'
+import { useFeatures } from '@/lib/features'
 
 /* ---------- The selection lives in the address, so Back and links (such as from home) keep it ---------- */
 
@@ -45,6 +45,7 @@ export function readSelection(params: URLSearchParams): Selection {
     sourceIds: readIds(params, KEYS.sourceIds),
     chapterIds: readIds(params, KEYS.chapterIds),
     status: (STATUSES as readonly string[]).includes(status ?? '') ? (status as Status) : DEFAULT_STATUS,
+    starred: params.get('starred') === '1',
   }
 }
 
@@ -54,6 +55,7 @@ function writeSelection(selection: Selection) {
     if (selection[kind].length) params.set(KEYS[kind], selection[kind].join(','))
   }
   if (selection.status !== DEFAULT_STATUS) params.set('status', selection.status)
+  if (selection.starred) params.set('starred', '1')
   return params
 }
 
@@ -72,7 +74,10 @@ export function TakeExamPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const selection = readSelection(params)
+  const features = useFeatures()
+  const inAddress = readSelection(params)
+  // With starring turned off in Settings there's no way to let go of the filter, so it's ignored.
+  const selection = features.starredQuestions ? inAddress : { ...inAddress, starred: false }
   const random = isRandom(selection)
 
   const [expanded, setExpanded] = useState<number[]>(() => selection.sourceIds)
@@ -84,7 +89,7 @@ export function TakeExamPage() {
     saveChoices(id, next)
   }
 
-  const settings = useQuery({ queryKey: ['settings'], queryFn: async () => readJson(await api.api.settings.$get()) })
+  const settings = useSettings()
   const defaults = settings.data?.quizDefaults ?? DEFAULT_QUIZ_DEFAULTS
   const max: MaxQuestions = chosen.max ?? defaults.maxQuestions
   const feedback: Feedback = chosen.feedback ?? defaults.feedback
@@ -95,7 +100,7 @@ export function TakeExamPage() {
     queryFn: async () => readJson(await api.api.exams[':id'].practice.$get({ param: { id } })),
   })
   const pool = useMemo(() => (practice.data ? buildPool(practice.data) : null), [practice.data])
-  const selectionKey = params.toString()
+  const selectionKey = `${params.toString()} ${selection.starred}`
   // Keyed on the address rather than the selection object, which is new on every render.
   const view = useMemo(
     () => (practice.data && pool ? practiceView(practice.data, pool, selection) : null),
@@ -115,6 +120,7 @@ export function TakeExamPage() {
   function change(next: Partial<Selection>) {
     setParams(writeSelection({ ...selection, ...next }), { replace: true })
   }
+  /** All sources: no tiles picked, so the quiz draws from the whole exam. */
   function chooseRandom() {
     change({ categoryIds: [], sourceIds: [], chapterIds: [] })
   }
@@ -124,7 +130,9 @@ export function TakeExamPage() {
     change({
       sourceIds: toggled(selection.sourceIds, sourceId),
       // Letting go of a source lets go of the chapters picked inside it too.
-      chapterIds: leaving ? selection.chapterIds.filter((chapterId) => !ownChapters.has(chapterId)) : selection.chapterIds,
+      chapterIds: leaving
+        ? selection.chapterIds.filter((chapterId) => !ownChapters.has(chapterId))
+        : selection.chapterIds,
     })
   }
   function nextStatus() {
@@ -144,14 +152,16 @@ export function TakeExamPage() {
     () => (pool ? quizMix(pool, selectQuestions(pool, selection), max === 'max' ? undefined : max, sort) : undefined),
     [pool, selectionKey, max, sort],
   )
-  const statusOptions = STATUS_OPTIONS.map((option) => ({ ...option, count: view?.statusCounts[option.value] }))
+  const statusOptions = STATUS_OPTIONS.map((option) => ({
+    ...option,
+    count: features.statusCounts ? view?.statusCounts[option.value] : undefined,
+  }))
+  const progressStyle = features.tileSquares ? 'squares' : 'bar'
   const canStart = view !== null && view.available > 0 && !start.isPending
 
-  // Enter starts, R picks Random, S moves through the status options, and M through Max questions.
-  const onKey = useRef<(event: KeyboardEvent) => void>(() => {})
-  onKey.current = (event) => {
-    if (!view || !isForShortcuts(event)) return
-    const key = event.key.toLowerCase()
+  // Enter starts, R picks All sources, S moves through the status options, and M through Max questions.
+  useShortcuts((event, key) => {
+    if (!view) return
     if (key === 'enter' && canStart) {
       event.preventDefault()
       start.mutate()
@@ -165,31 +175,13 @@ export function TakeExamPage() {
       event.preventDefault()
       nextMax()
     }
-  }
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => onKey.current(event)
-    window.addEventListener('keydown', listener)
-    return () => window.removeEventListener('keydown', listener)
-  }, [])
+  })
 
-  if (practice.isPending) {
-    return (
-      <p>
-        <Spinner />
-      </p>
-    )
-  }
+  if (practice.isPending) return <PageLoading />
   if (practice.isError || !view) {
     const missing = practice.error instanceof HttpError && practice.error.status === 404
     return (
-      <div role="alert">
-        <p className="font-semibold text-wrong-ink">
-          {missing ? "There's no such exam." : `Couldn't load this exam: ${practice.error?.message}`}
-        </p>
-        <p className="mt-2 text-sm">
-          <Link to="/">Back to home</Link>
-        </p>
-      </div>
+      <PageError>{missing ? "There's no such exam." : `Couldn't load this exam: ${practice.error?.message}`}</PageError>
     )
   }
 
@@ -206,26 +198,53 @@ export function TakeExamPage() {
         <Link to="/" className="inline-flex items-center gap-1 text-sm">
           <ArrowLeft className="size-3.5" aria-hidden="true" /> Home
         </Link>
-        <h1 className="mt-2 text-2xl break-words">{exam.name}</h1>
-        <p className="text-sm text-ink-soft">{exam.subject}</p>
+        <div className="mt-2 flex items-center gap-3">
+          <ExamIcon subject={exam.subject} name={exam.name} className="size-10" />
+          <div className="min-w-0">
+            <h1 className="text-2xl break-words">{exam.name}</h1>
+            <p className="text-sm text-ink-soft">{exam.subject}</p>
+          </div>
+        </div>
       </div>
 
       {empty ? (
-        <p className="rounded-lg border border-line bg-surface p-4 text-sm shadow-card">
+        <Card as="p" padding="sm" className="text-sm">
           No questions for this exam yet. <Link to="/import">Import some</Link> to start practising.
-        </p>
+        </Card>
       ) : (
         <>
           <section aria-label="Options">
             <FilterPanel>
               <FilterField label="Status" shortcut="S">
-                <Segmented label="Status" value={selection.status} options={statusOptions} onChange={(status) => change({ status })} />
+                <Segmented
+                  label="Status"
+                  value={selection.status}
+                  options={statusOptions}
+                  onChange={(status) => change({ status })}
+                />
               </FilterField>
+              {features.starredQuestions && (
+                <FilterField label="Starred">
+                  <StarButton
+                    on={selection.starred}
+                    label="Starred questions only"
+                    title={
+                      selection.starred ? 'Only questions you starred. Press for all.' : 'Only questions you starred'
+                    }
+                    onChange={(starred) => change({ starred })}
+                  />
+                </FilterField>
+              )}
               <FilterField label="Max questions" shortcut="M">
                 <MaxQuestionsPicker value={max} inputRef={otherBox} onChange={(value) => choose({ max: value })} />
               </FilterField>
               <FilterField label="Sort">
-                <Segmented label="Sort" value={sort} options={SORT_OPTIONS} onChange={(value) => choose({ sort: value })} />
+                <Segmented
+                  label="Sort"
+                  value={sort}
+                  options={SORT_OPTIONS}
+                  onChange={(value) => choose({ sort: value })}
+                />
               </FilterField>
               <FilterField label="Feedback">
                 <Segmented
@@ -262,6 +281,7 @@ export function TakeExamPage() {
                       diminished={random}
                       included={!random && noCategories}
                       emphasis={selection.status}
+                      progressStyle={progressStyle}
                       onClick={() => change({ categoryIds: toggled(selection.categoryIds, category.id) })}
                     />
                   ))}
@@ -288,6 +308,7 @@ export function TakeExamPage() {
                         diminished={random}
                         included={!random && noTree}
                         emphasis={selection.status}
+                        progressStyle={progressStyle}
                         onClick={() => toggleSource(source.id)}
                         expanded={expanded.includes(source.id)}
                         onToggleExpanded={() => setExpanded((ids) => toggled(ids, source.id))}
@@ -310,6 +331,7 @@ export function TakeExamPage() {
                             diminished={random}
                             included={!random && (noTree || (sourceSelected && !narrowed))}
                             emphasis={selection.status}
+                            progressStyle={progressStyle}
                             onClick={() => change({ chapterIds: toggled(selection.chapterIds, chapter.id) })}
                           />
                         ))}
@@ -332,15 +354,12 @@ export function TakeExamPage() {
               selected={selected}
               available={view.available}
               mix={mix}
+              strip={features.questionStrip}
               loading={start.isPending}
               onStart={() => start.mutate()}
             />
           </div>
-          {start.isError && (
-            <p role="alert" className="text-sm font-semibold text-wrong-ink">
-              Couldn't start that quiz: {start.error.message}
-            </p>
-          )}
+          {start.isError && <ErrorText>Couldn't start that quiz: {start.error.message}</ErrorText>}
         </>
       )}
     </div>

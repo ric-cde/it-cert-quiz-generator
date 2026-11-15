@@ -83,6 +83,31 @@
           ]
         },
         {
+          "externalId": "mock-5",
+          "type": "multi",
+          "category": "Controlling Program Flow",
+          "bodyMd": "Which of the following can go on the right side of a for-each loop? (Choose all that apply.)",
+          "explanationMd": "A, C. A for-each loop supports arrays and classes that implement `java.lang.Iterable`, making options A and C correct. Option B is incorrect, because `Map` does not implement `java.lang.Iterable`.",
+          "explanationOrigin": "source",
+          "options": [
+            {
+              "label": "A",
+              "bodyMd": "`int[]`",
+              "isCorrect": true
+            },
+            {
+              "label": "B",
+              "bodyMd": "`Map`",
+              "isCorrect": false
+            },
+            {
+              "label": "C",
+              "bodyMd": "`List`",
+              "isCorrect": true
+            }
+          ]
+        },
+        {
           "externalId": "mock-4",
           "type": "free_form",
           "category": "Managing Concurrent Code Execution",

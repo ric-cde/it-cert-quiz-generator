@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
-import { DEFAULT_QUIZ_DEFAULTS } from '../../shared/domain'
-import type { PracticeData, PracticeQuestion, QuestionHistory } from '../../shared/practice'
+import { FeaturesProvider } from '@/lib/features'
+import { DEFAULT_QUIZ_DEFAULTS } from '@shared/domain'
+import type { PracticeData, PracticeQuestion, QuestionHistory } from '@shared/practice'
 import { readSelection, TakeExamPage } from './TakeExamPage'
 
 vi.mock('@/lib/api', () => ({
@@ -26,11 +27,24 @@ const json = (value: unknown, status = 200) => Response.json(value, { status }) 
 /**
  * Alpha one (70): 25 new and 2 incorrect questions in Logic.
  * Alpha two (71): 5 new and 5 correct questions in Odd ones.
- * So 37 in all, 30 unanswered.
+ * So 37 in all, 30 unanswered. Three are starred: a new and an incorrect one in Alpha one, and a
+ * correct one in Alpha two.
  */
 let nextId = 1
-const questions = (count: number, chapterId: number, categoryId: number, history: QuestionHistory): PracticeQuestion[] =>
-  Array.from({ length: count }, () => ({ id: nextId++, chapterId, categoryId, history }))
+const questions = (
+  count: number,
+  chapterId: number,
+  categoryId: number,
+  history: QuestionHistory,
+  starred = 0,
+): PracticeQuestion[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: nextId++,
+    chapterId,
+    categoryId,
+    history,
+    ...(index < starred ? { starred: true as const } : {}),
+  }))
 
 const data: PracticeData = {
   exam: { id: 2, name: 'Associate Developer', subject: 'OutSystems' },
@@ -45,10 +59,10 @@ const data: PracticeData = {
     { id: 71, name: 'Alpha two', sourceId: 7 },
   ],
   questions: [
-    ...questions(25, 70, 1, 'new'),
-    ...questions(2, 70, 1, 'incorrect'),
+    ...questions(25, 70, 1, 'new', 1),
+    ...questions(2, 70, 1, 'incorrect', 1),
     ...questions(5, 71, 2, 'new'),
-    ...questions(5, 71, 2, 'correct'),
+    ...questions(5, 71, 2, 'correct', 1),
   ],
 }
 
@@ -61,20 +75,22 @@ function renderPage(path = '/exam/2') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route
-            path="/exam/:id"
-            element={
-              <>
-                <TakeExamPage />
-                <Address />
-              </>
-            }
-          />
-          <Route path="/quiz/:id" element={<p>The quiz</p>} />
-        </Routes>
-      </MemoryRouter>
+      <FeaturesProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route
+              path="/exam/:id"
+              element={
+                <>
+                  <TakeExamPage />
+                  <Address />
+                </>
+              }
+            />
+            <Route path="/quiz/:id" element={<p>The quiz</p>} />
+          </Routes>
+        </MemoryRouter>
+      </FeaturesProvider>
     </QueryClientProvider>,
   )
 }
@@ -82,7 +98,9 @@ function renderPage(path = '/exam/2') {
 /** The live count's two numbers, as "20 of 30". */
 const liveCount = () => {
   const available = screen.queryByText(/of \d+ available/)
-  return available ? `${available.previousSibling!.textContent} ${available.textContent!.replace(' available', '')}` : 'none'
+  return available
+    ? `${available.previousSibling!.textContent} ${available.textContent!.replace(' available', '')}`
+    : 'none'
 }
 const loaded = () => screen.findByRole('heading', { name: 'Associate Developer' })
 
@@ -90,17 +108,42 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   getSettings.mockImplementation(async () =>
-    json({ userId: 1, quizDefaults: { ...DEFAULT_QUIZ_DEFAULTS, maxQuestions: 20, feedback: 'after_each' }, syntaxHighlighting: true }),
+    json({
+      userId: 1,
+      quizDefaults: { ...DEFAULT_QUIZ_DEFAULTS, maxQuestions: 20, feedback: 'after_each' },
+      syntaxHighlighting: true,
+    }),
   )
   getPractice.mockImplementation(async () => json(data))
   postQuiz.mockImplementation(async () => json({ id: 9 }, 201))
 })
 
 describe('TakeExamPage', () => {
-  it('starts on Random and Unanswered, with the tiles greyed and the live count capped', async () => {
+  it('leaves out the question strip and the status counts when Settings turns them off', async () => {
     const { container } = renderPage()
     await loaded()
-    expect(screen.getByRole('button', { name: /^Random/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(container.querySelectorAll('[data-question]').length).toBeGreaterThan(0)
+    expect(screen.getByRole('radio', { name: 'Unanswered' })).toHaveAttribute('aria-describedby')
+
+    getSettings.mockImplementation(async () =>
+      json({
+        userId: 1,
+        quizDefaults: DEFAULT_QUIZ_DEFAULTS,
+        syntaxHighlighting: true,
+        features: { questionStrip: false, statusCounts: false },
+      }),
+    )
+    const off = renderPage()
+    await screen.findAllByRole('heading', { name: 'Associate Developer' })
+    await vi.waitFor(() => expect(off.container.querySelectorAll('[data-question]')).toHaveLength(0))
+    const radios = off.container.querySelectorAll('[role="radio"]')
+    expect([...radios].some((radio) => radio.hasAttribute('aria-describedby'))).toBe(false)
+  })
+
+  it('starts on All sources and Unanswered, with the tiles greyed and the live count capped', async () => {
+    const { container } = renderPage()
+    await loaded()
+    expect(screen.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('radio', { name: 'Unanswered' })).toBeChecked()
     expect(liveCount()).toBe('20 of 30')
     expect(container.querySelectorAll('[data-question]')).toHaveLength(20)
@@ -124,14 +167,14 @@ describe('TakeExamPage', () => {
     await user.click(screen.getByRole('button', { name: /^Logic/ }))
 
     expect(screen.getByRole('button', { name: /^Logic/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^Random/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('address')).toHaveTextContent('?categories=1')
     expect(liveCount()).toBe('20 of 25')
     // Alpha is narrowed to its Logic questions.
     expect(screen.getByRole('button', { name: /^Alpha 25 questions/ })).toBeInTheDocument()
     expect(getPractice).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('button', { name: /^Random/ }))
+    await user.click(screen.getByRole('button', { name: /^All sources/ }))
     expect(screen.getByTestId('address')).toHaveTextContent(/^$/)
   })
 
@@ -143,10 +186,9 @@ describe('TakeExamPage', () => {
     expect(two).toBeEnabled()
     // Narrowed to Logic, Alpha one has 27 questions, 2 of them attempted.
     expect(screen.getByRole('progressbar', { name: 'Alpha one progress' })).toHaveAttribute('aria-valuenow', '0')
-    expect(screen.getByRole('button', { name: /^Alpha one/ }).querySelector('[data-segment="incorrect"]')).toHaveAttribute(
-      'title',
-      '2 incorrect',
-    )
+    expect(
+      screen.getByRole('button', { name: /^Alpha one/ }).querySelector('[data-segment="incorrect"]'),
+    ).toHaveAttribute('title', '2 incorrect')
     await user.click(two)
     expect(two).toHaveAttribute('aria-pressed', 'true')
   })
@@ -182,11 +224,21 @@ describe('TakeExamPage', () => {
 
     expect(await screen.findByText('The quiz')).toBeInTheDocument()
     expect(postQuiz).toHaveBeenCalledWith({
-      json: { examId: 2, feedback: 'at_end', sort: 'random', categoryIds: [1], sourceIds: [], chapterIds: [], status: 'unsolved', limit: 50 },
+      json: {
+        examId: 2,
+        feedback: 'at_end',
+        sort: 'random',
+        categoryIds: [1],
+        sourceIds: [],
+        chapterIds: [],
+        status: 'unsolved',
+        starred: false,
+        limit: 50,
+      },
     })
   })
 
-  it('works from the keyboard: S moves through the statuses, R picks Random and Enter starts', async () => {
+  it('works from the keyboard: S moves through the statuses, R picks All sources and Enter starts', async () => {
     const user = userEvent.setup()
     renderPage('/exam/2?categories=1')
     await loaded()
@@ -194,7 +246,7 @@ describe('TakeExamPage', () => {
     await user.keyboard('s')
     expect(screen.getByRole('radio', { name: 'Incorrect' })).toBeChecked()
     await user.keyboard('r')
-    expect(screen.getByRole('button', { name: /^Random/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'true')
     expect(liveCount()).toBe('2 of 2')
 
     await user.keyboard('{Enter}')
@@ -215,6 +267,26 @@ describe('TakeExamPage', () => {
     // Typing there is typing, not shortcuts.
     await user.keyboard('7m')
     expect(screen.getByLabelText('Custom number of questions')).toHaveValue(7)
+  })
+
+  it('shows a square for each question on a tile, or a bar when Settings turns the squares off', async () => {
+    renderPage('/exam/2?status=all')
+    await loaded()
+    expect(screen.getByRole('button', { name: /^Logic/ }).querySelectorAll('[data-segment]')).toHaveLength(27)
+
+    getSettings.mockImplementation(async () =>
+      json({
+        userId: 1,
+        quizDefaults: DEFAULT_QUIZ_DEFAULTS,
+        syntaxHighlighting: true,
+        features: { tileSquares: false },
+      }),
+    )
+    const off = renderPage('/exam/2?status=all')
+    await screen.findAllByRole('heading', { name: 'Associate Developer' })
+    const logic = () => within(off.container).getByRole('button', { name: /^Logic/ })
+    // 27 questions, none correct: an incorrect part and an unanswered part.
+    await vi.waitFor(() => expect(logic().querySelectorAll('[data-segment]')).toHaveLength(2))
   })
 
   it('makes the part of each bar the status picks stand out', async () => {
@@ -248,7 +320,7 @@ describe('TakeExamPage', () => {
     expect(screen.getByRole('button', { name: /^Odd ones/ })).not.toHaveClass('bg-accent-soft')
   })
 
-  it('gives the tiles Random draws from a soft blue background and a plain border', async () => {
+  it('gives the tiles All sources draws from a soft blue background and a plain border', async () => {
     renderPage()
     await loaded()
     const logic = screen.getByRole('button', { name: /^Logic/ })
@@ -260,11 +332,13 @@ describe('TakeExamPage', () => {
   it('shows a ticked box on picked tiles and an empty one on tiles that could be picked', async () => {
     renderPage('/exam/2?categories=1&status=all')
     await loaded()
-    expect(screen.getByRole('button', { name: /^Logic/ }).querySelector('[data-checkbox]')).toHaveAttribute('data-checkbox', 'on')
-    expect(screen.getByRole('button', { name: /^Alpha 27 questions/ }).querySelector('[data-checkbox]')).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Logic/ }).querySelector('[data-checkbox]')).toHaveAttribute(
       'data-checkbox',
-      'off',
+      'on',
     )
+    expect(
+      screen.getByRole('button', { name: /^Alpha 27 questions/ }).querySelector('[data-checkbox]'),
+    ).toHaveAttribute('data-checkbox', 'off')
     // Nothing to add, so no box.
     expect(screen.getByRole('button', { name: /^Empty/ }).querySelector('[data-checkbox]')).toBeNull()
   })
@@ -276,6 +350,62 @@ describe('TakeExamPage', () => {
     expect(screen.getByRole('radio', { name: 'Unanswered' })).toHaveAccessibleDescription('25 questions')
     expect(screen.getByRole('radio', { name: 'Incorrect' })).toHaveAccessibleDescription('2 questions')
     expect(screen.getByRole('radio', { name: 'Unsolved' })).toHaveAccessibleDescription('27 questions')
+  })
+
+  describe('Starred', () => {
+    const star = () => screen.getByRole('button', { name: 'Starred questions only' })
+
+    it('starts as an unfilled star under its own heading, and narrows every count once pressed', async () => {
+      const user = userEvent.setup()
+      renderPage('/exam/2?status=all')
+      await loaded()
+      expect(screen.getByText('Starred')).toBeInTheDocument()
+      expect(star()).toHaveAttribute('aria-pressed', 'false')
+      expect(star()).toHaveTextContent('')
+      expect(star().querySelector('svg')).not.toHaveClass('fill-current')
+      expect(liveCount()).toBe('20 of 37')
+
+      await user.click(star())
+      expect(star()).toHaveAttribute('aria-pressed', 'true')
+      expect(star().querySelector('svg')).toHaveClass('fill-current')
+      expect(screen.getByTestId('address')).toHaveTextContent('starred=1')
+      expect(liveCount()).toBe('3 of 3')
+      expect(screen.getByRole('button', { name: /^Logic/ }).querySelector('[data-count]')).toHaveAttribute(
+        'data-count',
+        '2',
+      )
+      expect(screen.getByRole('radio', { name: 'Unanswered' })).toHaveAccessibleDescription('1 question')
+      // The bars still show everything in the tile.
+      expect(screen.getByRole('progressbar', { name: 'Odd ones progress' })).toHaveAttribute('aria-valuenow', '50')
+
+      await user.click(star())
+      expect(screen.getByTestId('address')).not.toHaveTextContent('starred')
+      expect(liveCount()).toBe('20 of 37')
+    })
+
+    it('starts a quiz of starred questions only', async () => {
+      const user = userEvent.setup()
+      renderPage('/exam/2?status=all&starred=1')
+      await loaded()
+      await user.click(screen.getByRole('button', { name: /Start quiz/ }))
+      await screen.findByText('The quiz')
+      expect(postQuiz.mock.calls[0]![0].json).toMatchObject({ starred: true, status: 'all' })
+    })
+
+    it('is left out, and ignored in the address, when Settings turns starring off', async () => {
+      getSettings.mockImplementation(async () =>
+        json({
+          userId: 1,
+          quizDefaults: DEFAULT_QUIZ_DEFAULTS,
+          syntaxHighlighting: true,
+          features: { starredQuestions: false },
+        }),
+      )
+      renderPage('/exam/2?status=all&starred=1')
+      await loaded()
+      await vi.waitFor(() => expect(screen.queryByText('Starred')).not.toBeInTheDocument())
+      expect(liveCount()).toBe('20 of 37')
+    })
   })
 
   it('colours the strip by how you have done on the questions', async () => {
@@ -370,6 +500,12 @@ describe('readSelection', () => {
       sourceIds: [],
       chapterIds: [],
       status: 'unanswered',
+      starred: false,
     })
+  })
+
+  it('reads Starred from the address', () => {
+    expect(readSelection(new URLSearchParams('starred=1')).starred).toBe(true)
+    expect(readSelection(new URLSearchParams('starred=yes')).starred).toBe(false)
   })
 })

@@ -1,12 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { QuizResults } from '../../shared/quiz'
+import type { QuizResults } from '@shared/quiz'
+import { DifficultyControl } from './DifficultyControl'
 import { FlagButton, FlagReason } from './FlagControl'
 import { QuizActions } from './QuizActions'
 import { MAX_SEGMENTS, QuizProgress } from './QuizProgress'
 import { QuizScore, quizScore } from './QuizScore'
-
 
 const results = (overrides: Partial<QuizResults> = {}): QuizResults => ({
   correct: 0,
@@ -19,7 +19,10 @@ const results = (overrides: Partial<QuizResults> = {}): QuizResults => ({
 
 describe('quizScore', () => {
   it('counts skipped and revealed against you, but not questions never reached', () => {
-    expect(quizScore(results({ correct: 2, incorrect: 1, revealed: 1, skipped: 1, notReached: 10 }))).toEqual({ asked: 5, percent: 40 })
+    expect(quizScore(results({ correct: 2, incorrect: 1, revealed: 1, skipped: 1, notReached: 10 }))).toEqual({
+      asked: 5,
+      percent: 40,
+    })
   })
 
   it('never rounds up to 100', () => {
@@ -54,8 +57,38 @@ describe('QuizProgress', () => {
 
   it('has one segment per question: done, current, then to do', () => {
     const { container } = render(<QuizProgress position={2} total={5} current={2} />)
-    const states = [...container.querySelectorAll('[data-segment]')].map((segment) => segment.getAttribute('data-segment'))
+    const states = [...container.querySelectorAll('[data-segment]')].map((segment) =>
+      segment.getAttribute('data-segment'),
+    )
     expect(states).toEqual(['done', 'done', 'current', 'todo', 'todo'])
+  })
+
+  it('shows how each done question went, and only those', () => {
+    const { container } = render(
+      <QuizProgress position={4} total={7} current={4} marks={['correct', 'incorrect', 'skipped', 'answered']} />,
+    )
+    const segments = [...container.querySelectorAll('[data-segment]')]
+    expect(segments.map((segment) => segment.getAttribute('data-segment'))).toEqual([
+      'correct',
+      'incorrect',
+      'skipped',
+      'answered',
+      'current',
+      'todo',
+      'todo',
+    ])
+    expect(segments[0]).toHaveClass('bg-correct')
+    expect(segments[1]).toHaveClass('bg-wrong')
+    expect(segments[2]).toHaveClass('bg-amber')
+    expect(segments[3]).toHaveClass('bg-accent')
+  })
+
+  it('ignores marks for questions not done yet', () => {
+    const { container } = render(<QuizProgress position={1} total={3} current={1} marks={['correct', 'incorrect']} />)
+    const states = [...container.querySelectorAll('[data-segment]')].map((segment) =>
+      segment.getAttribute('data-segment'),
+    )
+    expect(states).toEqual(['correct', 'current', 'todo'])
   })
 
   it('marks no current segment once the question on screen is done', () => {
@@ -87,6 +120,35 @@ describe('FlagButton', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Unflag' }))
     expect(on.onUnflag).toHaveBeenCalledOnce()
     expect(on.onFlag).not.toHaveBeenCalled()
+  })
+})
+
+describe('DifficultyControl', () => {
+  it('shows the difficulty between a -1 and a +1 button, each moving it a step', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<DifficultyControl difficulty={4} onChange={onChange} />)
+
+    expect(screen.getByRole('group', { name: 'Difficulty' })).toHaveTextContent('−1Difficulty 4+1')
+    await user.click(screen.getByRole('button', { name: 'Raise difficulty by 1' }))
+    await user.click(screen.getByRole('button', { name: 'Lower difficulty by 1' }))
+    expect(onChange.mock.calls).toEqual([[1], [-1]])
+  })
+
+  it('cannot go below 0 or above 10', () => {
+    const { rerender } = render(<DifficultyControl difficulty={0} onChange={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Lower difficulty by 1' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Raise difficulty by 1' })).toBeEnabled()
+
+    rerender(<DifficultyControl difficulty={10} onChange={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Lower difficulty by 1' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Raise difficulty by 1' })).toBeDisabled()
+  })
+
+  it('holds both buttons while a step is being saved', () => {
+    render(<DifficultyControl difficulty={5} busy onChange={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Lower difficulty by 1' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Raise difficulty by 1' })).toBeDisabled()
   })
 })
 

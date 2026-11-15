@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './app'
-import { commitImport, listSources, previewImport } from './bank-import'
+import { commitImport, previewImport } from './bank-import'
+import { listSources } from './sources'
 import { type Db, openDb } from './db'
 import { options, questions } from './db/schema'
 import { listToReview, resolveReview } from './review'
@@ -37,7 +38,11 @@ describe('review', () => {
       const result = commitImport(db, bank([doubted()]))
 
       expect(result).toMatchObject({ ok: true, added: 1, toReview: 1 })
-      expect(question()).toMatchObject({ reviewNote: 'The source says A, but it prints B.', reviewedAt: null, flaggedAt: null })
+      expect(question()).toMatchObject({
+        reviewNote: 'The source says A, but it prints B.',
+        reviewedAt: null,
+        flaggedAt: null,
+      })
       expect(listSources(db)[0]).toMatchObject({ toReview: 1, flagged: 0 })
     })
 
@@ -127,7 +132,10 @@ describe('review', () => {
     it('taking it out flags it, with the note as the reason', () => {
       expect(resolveReview(db, 1, { action: 'take-out' })).toBe('done')
 
-      expect(question()).toMatchObject({ flagReason: 'The source says A, but it prints B.', flaggedAt: expect.any(Date) })
+      expect(question()).toMatchObject({
+        flagReason: 'The source says A, but it prints B.',
+        flaggedAt: expect.any(Date),
+      })
       expect(listToReview(db)).toEqual([])
     })
 
@@ -141,15 +149,42 @@ describe('review', () => {
     })
 
     it('allows several answers on a multi-answer question', () => {
-      commitImport(db, bank([doubted({ externalId: 'm', type: 'multi', bodyMd: 'Which?', options: [option('D', true), option('E', false)] })]))
+      commitImport(
+        db,
+        bank([
+          doubted({
+            externalId: 'm',
+            type: 'multi',
+            bodyMd: 'Which?',
+            options: [option('D', true), option('E', false)],
+          }),
+        ]),
+      )
       const id = db.select().from(questions).where(eq(questions.externalId, 'm')).get()!.id
 
-      expect(resolveReview(db, id, { action: 'change-answer', correctOptionIds: [optionByText('D').id, optionByText('E').id] })).toBe('done')
+      expect(
+        resolveReview(db, id, {
+          action: 'change-answer',
+          correctOptionIds: [optionByText('D').id, optionByText('E').id],
+        }),
+      ).toBe('done')
       expect(optionByText('E').isCorrect).toBe(true)
     })
 
     it('refuses to change the answer of a free-form question', () => {
-      commitImport(db, bank([{ externalId: 'f', type: 'free_form', category: 'Logic', bodyMd: 'Why?', modelAnswerMd: 'Because', reviewNote: 'Doubt' }]))
+      commitImport(
+        db,
+        bank([
+          {
+            externalId: 'f',
+            type: 'free_form',
+            category: 'Logic',
+            bodyMd: 'Why?',
+            modelAnswerMd: 'Because',
+            reviewNote: 'Doubt',
+          },
+        ]),
+      )
       const id = db.select().from(questions).where(eq(questions.externalId, 'f')).get()!.id
       expect(resolveReview(db, id, { action: 'change-answer', correctOptionIds: [1] })).toBe('invalid-answer')
     })
@@ -203,7 +238,14 @@ describe('review', () => {
 
       expect(commitImport(db, bank([doubted()]))).toMatchObject({ updated: 1 })
       expect(question().bodyMd).toBe('What does it print?')
-      expect(db.select().from(options).all().filter((o) => !o.deletedAt).map((o) => o.bodyMd)).toEqual(['A', 'B', 'C'])
+      expect(
+        db
+          .select()
+          .from(options)
+          .all()
+          .filter((o) => !o.deletedAt)
+          .map((o) => o.bodyMd),
+      ).toEqual(['A', 'B', 'C'])
     })
 
     it('leaves a flag in place, because it is a verdict rather than content', () => {
@@ -217,7 +259,11 @@ describe('review', () => {
 
   describe('routes', () => {
     const post = (id: string, body: unknown) =>
-      createApi(db).request(`/api/review/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      createApi(db).request(`/api/review/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
 
     beforeEach(() => {
       commitImport(db, bank([doubted()]))

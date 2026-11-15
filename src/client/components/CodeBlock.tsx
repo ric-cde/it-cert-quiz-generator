@@ -62,10 +62,7 @@ export function CodeBlock({ code, language }: { code: string; language?: string 
   }
 
   const CopyIcon = copyState === 'copied' ? Check : copyState === 'failed' ? TriangleAlert : Copy
-  const scrollClass = clsx(
-    'overflow-x-auto py-3 pl-4 focus-visible:outline-code-ink',
-    canHighlight ? 'pr-20' : 'pr-11',
-  )
+  const scrollClass = clsx('overflow-x-auto py-3 pl-4 focus-visible:outline-code-ink', canHighlight ? 'pr-20' : 'pr-11')
 
   return (
     <div className="code-block relative rounded-md bg-code-bg text-code-ink">

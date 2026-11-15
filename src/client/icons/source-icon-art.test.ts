@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SOURCE_ICON_KEYS } from '../../shared/source-icons'
+import { SOURCE_ICON_KEYS } from '@shared/source-icons'
 import { SOURCE_ICON_ART } from './source-icon-art.generated'
 
 describe('the source icon artwork', () => {

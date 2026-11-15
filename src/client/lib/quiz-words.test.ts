@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatStarted } from './quiz-words'
+import { formatStarted, plural } from './quiz-words'
 
 describe('formatStarted', () => {
   // A Thursday afternoon.
@@ -14,5 +14,17 @@ describe('formatStarted', () => {
     ['last year', at(2025, 0, 3, 23, 59), '23:59 · Jan 3'],
   ])('%s', (_when, iso, expected) => {
     expect(formatStarted(iso, now)).toBe(expected)
+  })
+})
+
+describe('plural', () => {
+  it.each([
+    [0, 'question', undefined, '0 questions'],
+    [1, 'question', undefined, '1 question'],
+    [2, 'question', undefined, '2 questions'],
+    [1, 'quiz', 'quizzes', '1 quiz'],
+    [3, 'quiz', 'quizzes', '3 quizzes'],
+  ])('%i %s', (count, word, many, expected) => {
+    expect(plural(count, word, many)).toBe(expected)
   })
 })

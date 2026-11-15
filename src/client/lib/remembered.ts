@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { FEEDBACK_MODES, QUIZ_SORTS } from '../../shared/domain'
+import { FEEDBACK_MODES, QUIZ_SORTS } from '@shared/domain'
 
 /**
  * Choices remembered in this browser only, never on the server. For now every preference like

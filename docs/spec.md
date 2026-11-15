@@ -6,7 +6,7 @@
 
 **Design principles:** minimalist, readable, fast. The only friction should be the difficulty of the questions. Build in small, modular stages, with a review after each one.
 
-This spec reflects the clarifying Q&A and takes precedence over `overview.md` where they differ.
+This spec reflects the clarifying Q&A. It describes behaviour. How things look is shown in the component gallery (`/dev/components`), which is the reference for visual detail. The original overview, which this spec replaced, is kept in `docs/archive/`.
 
 ## 1. Scope
 
@@ -37,6 +37,10 @@ Hierarchy: **Subject > Exam > Category > Source > Chapter**
 
 Question and option text is Markdown, including code blocks. Each option has optional **per-answer text**, and a multiple choice question can also have an optional **explanation of the whole question**, shown below the options after answering. A source's single "Answer: B, because..." goes there rather than onto one option. The UI shows only the text that exists, wherever it is. When a question you missed has none at all, one muted line says so, and Stage 10's Generate button goes there. For a wrong answer, this says why it's wrong in 1-3 sentences. For the correct answer, it says something like "Correct! Here's why" in 1-2 sentences. Ideally a bank comes with this text, and if it doesn't, Claude can write it (see section 6). Options are shuffled unless the question is marked `lockOptionOrder`, for example for "all of the above".
 
+**Option labels:** some sources, such as a study guide's answer appendix, explain each question in one paragraph that refers to options by letter ("options A and F are correct"). Splitting that text across shuffled options loses its sense, so such a bank keeps it whole as the question's explanation and gives each option its source `label`. The label shows beside the option. A question has labels on every option or on none, and options without labels show none.
+
+**Option order** is a setting with three choices: **Lettered in order** (the default) keeps labelled questions in the source's order, A, B, C, and shuffles the rest. **Always in order** shuffles nothing. **Always shuffle** shuffles labelled questions too, each label moving with its option, so the letters in the explanation still point at the right options. A question marked `lockOptionOrder` keeps its order whatever the setting. A quiz keeps the setting it started with, so changing it never reorders a quiz under way or its Review answers.
+
 ### Tables
 
 | Table | Key fields |
@@ -50,14 +54,16 @@ Question and option text is Markdown, including code blocks. Each option has opt
 | `sources` | examId, name, rating (1-5, optional), origin (`upload` / `import` / `generated`), trust (`official` / `third_party` / `ai`, optional), reference (optional), icon (an animal's key) |
 | `chapters` | sourceId, name |
 | `questions` | chapterId, categoryId, type, bodyMd, modelAnswerMd, explanationMd, explanationOrigin, lockOptionOrder, externalId, contentHash, reviewNote, reviewedAt, flaggedAt, flagReason, deletedAt |
-| `options` | questionId, bodyMd, explanationMd, explanationOrigin (`source` / `generated`), isCorrect, position, deletedAt |
+| `options` | questionId, label, bodyMd, explanationMd, explanationOrigin (`source` / `generated`), isCorrect, position, deletedAt |
 | `explanations` | questionId (one per question), bodyMd (free-form questions only), sources, model, createdAt |
 | `quizzes` | userId, examId, mode (`study` / `mock`), config, questionIds, position, startedAt, finishedAt |
 | `attempts` | userId, questionId, quizId, selectedOptionIds, responseText, result (`correct` / `partial` / `incorrect` / `pending`), kind (`answered` / `revealed`), feedbackMd, durationMs, createdAt |
 | `question_stats` | userId, questionId, difficulty, attemptCount, correctCount, streak, latestCorrect, everCorrect, lastSeenAt |
+| `question_stars` | userId, questionId, createdAt: the questions a user has starred |
+| `difficulty_adjustments` | userId, questionId, steps: how far a user has moved a question's difficulty by hand |
 | `drafts` | examId, kind (`import` / `generate`), status, input, draftJson |
 | `ai_calls` | purpose, model, inputTokens, outputTokens, createdAt |
-| `settings` | userId, priority weights, quiz defaults, syntaxHighlighting |
+| `settings` | userId, priority weights, quiz defaults, syntaxHighlighting, optionOrder |
 
 Rules:
 
@@ -73,6 +79,8 @@ Difficulty is stored per user and runs from 0 to 10. It starts unset.
 |---|---|---|
 | Incorrect, revealed, or free-form partial | Set to 5 | +1, up to 10 |
 | Correct | Set to 3 | -1, down to 0 |
+
+**Difficulty buttons (experimental, behind a flag).** With feedback after each question, a locked question shows its difficulty just left of Star and Flag, with **-1** and **+1** buttons that move it one step, within 0 to 10. The down and up arrow keys do the same. The steps are stored apart from the attempts and added again whenever the stats are rebuilt, so they aren't lost.
 
 ### Progress
 
@@ -90,7 +98,8 @@ All question types count, and a free-form partial shows yellow. Flagged question
 
 - Rate each **source** from 1 to 5. Higher-rated sources are favoured when prioritising.
 - Each source can also say how far it can be trusted: **official** (the exam vendor's own material, the ground truth), **third-party**, or **AI-written**, plus a **reference** such as a URL or a book and edition. These come from the file, and generated sources count as AI-written unless it says otherwise.
-- Each source has its own **animal icon**, so sources are easy to tell apart on the home cards, the take-exam tiles and the sources list. At import one is suggested that no other source has, and clicking it offers the others that are free. Once every icon is taken, the next sources wrap around and take the icons again from the first. Only the icon's key is stored. The set is a list of keys in `src/shared/source-icons.ts` and its artwork is generated from it by `npm run icons:build`, so the set can be changed later. A source whose icon has been dropped from the set is given a new one when the server starts.
+- Each source has its own **animal icon**, so sources are easy to tell apart on the home cards, the take-exam tiles and the sources list. At import one is suggested that no other source has, and clicking it offers the others that are free. Once every icon is taken, the next sources wrap around and take the icons again from the first. Settings can turn the icons off. Only the icon's key is stored. The set is a list of keys in `src/shared/source-icons.ts` and its artwork is generated from it by `npm run icons:build`, so the set can be changed later. A source whose icon has been dropped from the set is given a new one when the server starts.
+- Each exam shows the **logo of its subject**, such as Java's or the OutSystems ring, on its home card and at the top of the take-exam screen. The logo is chosen from the subject's name, so every exam in a subject has the same one. When the subject's name matches nothing, the exam's own name is tried, and an exam that still matches nothing shows a plain rosette. Nothing is stored. The list of logos and the words that choose each one is `src/shared/exam-icons.ts`, and `npm run icons:build` generates the artwork from SVG Logos, with Simple Icons and the hand-added files in `src/client/icons/custom/` for logos it lacks. Settings can turn the logos off.
 - **Flag** any question as bad or wrong. Flagged questions are left out of quizzes and appear in a review list where you can fix or unflag them.
 - **Doubts:** a question can arrive with a `reviewNote`, for example when a source's answer looks wrong. It stays in quizzes with a warning, and the note itself, which may give away the answer, shows only after answering. The import screen sends you to `/review`, where you can keep the question as it is, change its answer, or take it out of quizzes, which flags it.
 
@@ -119,13 +128,13 @@ Unfinished quizzes are listed at the top, one row each with a Resume button. Lin
 
 ### Take exam
 
-The options card comes first, below the exam's name, then Random, then the tiles. On wide screens Sources and Categories sit side by side, Sources on the left: each source as wide as two category tiles, with its chapters two across beneath it, and categories two across. Each column grows downwards. Narrower screens have one column, Categories first.
+The options card comes first, below the exam's name, then All sources, then the tiles. On wide screens Sources and Categories sit side by side, Sources on the left: each source as wide as two category tiles, with its chapters two across beneath it, and categories two across. Each column grows downwards. Narrower screens have one column, Categories first.
 
 **Tiles**, in this order:
 
-1. **Random**, a single normal-sized tile at the top
-2. **Categories**, each with a progress bar
-3. **Sources**, each with a progress bar and expandable to show its Chapters
+1. **All sources**, a single normal-sized tile at the top, which draws from the whole exam
+2. **Categories**, each showing its progress
+3. **Sources**, each showing its progress and expandable to show its Chapters
 
 **How selections combine:**
 
@@ -135,15 +144,16 @@ The options card comes first, below the exam's name, then Random, then the tiles
   - Selecting a Source includes all of its Chapters.
   - Selecting a Chapter inside a selected Source narrows that Source to the Chapter.
   - Selecting Source A plus a Chapter in Source B gives all of A plus that Chapter, rather than an empty result.
-- These tiles replace the separate Source filter in `overview.md`, and the status filter below covers its "All incorrect" and "All not attempted" presets.
-- Random clears the tile selection and draws from the whole exam, still applying the filters. While it's selected, the Categories and Sources block is visually diminished: the tiles go flat, with grey text, grey badges and faded bars, and a line says to pick a tile to narrow things down. Tiles with questions Random will draw from keep a plain border and get the soft blue background that marks included tiles elsewhere; tiles with none stay grey. Clicking a tile in that block turns Random off and selects the tile.
-- A selected tile has a thicker accent border and a square checkbox in its corner with a filled square inside, so it can't be confused with the round official badge. Every other tile with questions it could add shows the same checkbox, empty; tiles with none show no box. Tiles whose questions are in the quiz because of other picks, without being selected themselves, have a soft blue background: a selected source brings in the categories it has questions in and all its chapters (until one of them is picked), and selected categories bring in the sources and chapters with questions in them.
+- These tiles replace the separate Source filter in the original overview, and the status filter below covers its "All incorrect" and "All not attempted" presets.
+- All sources clears the tile selection and draws from the whole exam, still applying the filters. While it's selected, the Categories and Sources block is visually diminished, a line says to pick a tile to narrow things down, and the tiles it will draw from are marked as included. Clicking a tile in that block turns All sources off and selects the tile.
+- A selected tile is clearly marked, in a way that can't be confused with the official badge, and every other tile with questions it could add shows that it can be picked. Tiles whose questions are in the quiz because of other picks, without being selected themselves, are marked as included: a selected source brings in the categories it has questions in and all its chapters (until one of them is picked), and selected categories bring in the sources and chapters with questions in them.
 
 **Options:**
 
 | Option | Values |
 |---|---|
 | Status | All, Unanswered (never attempted), Incorrect (latest attempt wrong), Unsolved (never right). Defaults to Unanswered. |
+| Starred | A star, off by default. On, only questions you've starred are asked. |
 | Type | All, Multiple choice, Free-form. Defaults to All. |
 | Max questions | 20, 50, 100, Max presets, plus a number field for any other value. A value above what's available is capped by it. |
 | Prioritise | On/off. Decides which questions make the cut when capped. Off means a random pick. |
@@ -154,16 +164,18 @@ A live count always shows the result, for example **"20 of 137 available"**, or 
 
 **How it behaves (Stage 6):**
 
-- Random is selected whenever no tile is, so the screen opens on Random. Letting go of the last tile turns it back on.
-- Category tiles are the exam's top-level categories, with their topics counted in. Topics aren't tiles of their own. Official categories come first, in the order the syllabus defines them, then unofficial ones in the order they were added on import, all in the one list. Each has a small badge in its corner: a blue tick badge for official, a grey minus badge for unofficial, with "Official" or "Unofficial" on hover. An official category with no questions still shows, as an empty tile, so gaps in coverage are visible.
-- A tile's count is how many questions it would add now. It narrows only across types: category tiles by the sources and chapters picked, and source and chapter tiles by the categories picked. Tiles of the same type add together, so they never narrow each other. The count then applies the status filter.
-- A tile's progress bar narrows the same way, and the part the status picks stands out: it's a little taller than the rest of the bar and square-cornered, so it sits flush against the parts beside it, with a thin white outline and a second in its own colour. Unanswered picks the grey part, Incorrect and Unsolved the yellow, and All nothing. Unsolved picks all of the yellow, though a question that was right once and wrong since is in it.
+- All sources is selected whenever no tile is, so the screen opens on it. Letting go of the last tile turns it back on. A quiz started from it is still named **Random**.
+- Category tiles are the exam's top-level categories, with their topics counted in. Topics aren't tiles of their own. Official categories come first, in the order the syllabus defines them, then unofficial ones in the order they were added on import, all in the one list. Each has a small badge saying whether it's official or unofficial, with the word on hover. An official category with no questions still shows, as an empty tile, so gaps in coverage are visible.
+- A tile's count, shown as a number in its corner, is how many questions it would add now. It narrows only across types: category tiles by the sources and chapters picked, and source and chapter tiles by the categories picked. Tiles of the same type add together, so they never narrow each other. The count then applies the status filter.
+- A tile's progress narrows the same way, and the part the status picks stands out, striped. It's drawn as one small square for each question, or as a bar when Settings turns the squares off. Neither has a % figure beside it. Unanswered picks the grey part, Incorrect and Unsolved the yellow, and All nothing. Unsolved picks all of the yellow, though a question that was right once and wrong since is in it.
 - A tile at 0 for now is greyed and says "0 questions", but can still be picked or let go. Only a tile with nothing that could ever be asked can't be picked.
 - Letting go of a source lets go of the chapters picked inside it. While a source is selected and expanded, a line says whether all its chapters are included or only the ones picked.
-- The tiles and status filter are kept in the address (`/exam/2?categories=4&status=incorrect`), so Back and reload keep them and other screens can link straight to a selection. Max questions, Sort and Feedback are remembered for each exam in this browser, and start from Settings until you choose.
-- The live count and Start quiz sit in a bar along the bottom of the window, full width with square edges and a tinted background. It stays in view while you scroll through the tiles. The selected number is large and accent-coloured, so it stands out from "of y available". Between them, a strip has one rectangle for each question the quiz will ask, with a minimum width, wrapping onto more lines for big quizzes. The rectangles are coloured as the progress bars are, green for correct, yellow for incorrect (including right once and wrong since) and grey for unanswered, grouped in that order. In source order a capped quiz takes the first questions, so the split is exact; a random quiz shuffles before capping, so the cap is shared out in proportion.
-- Each status option has a small count in its top-right corner: how many questions that status would give for the tiles picked now, before the Max questions cap.
-- Keyboard: Enter starts the quiz, R picks Random, S moves through the status options, and M moves through 20, 50, 100 and Max, then into the number field. Each shows its key.
+- Starred narrows the tile counts, the status counts and the live count, as the status filter does, but not the progress bars. It can be turned off in Settings, which also ignores it in the address.
+- The tiles, status filter and Starred are kept in the address (`/exam/2?categories=4&status=incorrect&starred=1`), so Back and reload keep them and other screens can link straight to a selection. Max questions, Sort and Feedback are remembered for each exam in this browser, and start from Settings until you choose.
+- The live count and Start quiz sit in a full-width bar along the bottom of the window, which stays in view while you scroll through the tiles, with the selected number made prominent. Between them, a strip has one square for each question the quiz will ask, which shrink in steps as the quiz grows, coloured as the progress bars are: green for correct, yellow for incorrect (including right once and wrong since) and grey for unanswered, grouped in that order. In source order a capped quiz takes the first questions, so the split is exact; a random quiz shuffles before capping, so the cap is shared out in proportion.
+- Each status option has a small count: how many questions that status would give for the tiles picked now, before the Max questions cap.
+- The question strip, the squares on tiles and the status counts can each be turned off in Settings.
+- Keyboard: Enter starts the quiz, R picks All sources, S moves through the status options, and M moves through 20, 50, 100 and Max, then into the number field. Each shows its key, unless Settings turns keyboard hints off.
 - Type and Prioritise arrive with the features they need: Type with free-form questions in Stage 11, and Prioritise and Easiest/Hardest in Stage 7.
 
 **The live count must be accurate.** "x of y available" is the source of truth: starting the quiz must give exactly x questions, drawn from those y. The screen loads the exam's question metadata once (ids, chapter, category and your history in a word, but no question text), about 30–40 KB for 500 questions, and works out every count and bar in the browser as you click. The server creates the quiz with the same shared functions on the same data, with automated tests covering combinations of tiles and filters.
@@ -174,9 +186,10 @@ Both feedback modes share these:
 
 - The question is shown in Markdown. Code blocks have icon-only copy and syntax highlighting buttons. The highlighting button changes a saved global setting, because reading plain code is part of preparing for an exam that has no highlighting.
 - Every question has **Flag** and, with permission, **Edit**, on the card's action row, in a fixed place just left of where **Next** appears, so they never move as the buttons around them change. (Back in the card's top right corner is the alternative, if the row gets crowded.) A flag's optional reason opens below the row.
+- Every question also has a **Star**, an icon with no word, just left of Flag: an outline until pressed, then filled, and pressed again to take it off. Stars are each user's own, a way to mark questions to come back to. They change nothing about the question or the quiz, and a starred question that's flagged or deleted is still left out. It can be turned off in Settings.
 - From Stage 10, icon-only **Hint** and **Explain** buttons sit in the same group (see section 6).
-- Once locked, your chosen option has a **Your answer** tag in its top right corner. Whether it's right is shown by its mark and colour. A correct option you didn't choose looks clearly different from one you did: a widely spaced dashed outline, about six wide diagonal stripes of pale green, and a **Correct answer** tag, against a solid outline, a filled background and **Your answer**.
-- The progress bar has one segment per question: answered ones in the accent colour, the current one paler, the rest grey.
+- Once locked, your chosen option has a **Your answer** tag. Whether it's right is shown by its mark and colour. A correct option you didn't choose has a **Missed answer** tag and looks clearly different from one you did.
+- The progress bar has one segment per question: the current one pale, those not yet reached grey, and each one done coloured by how it went, green for correct, red for incorrect or revealed, and yellow for skipped. In at-the-end feedback an answered one stays in the accent colour, because nothing shows whether you were right, and only a skip is coloured.
 - Each attempt is saved as soon as it's made, so a quiz can be closed and resumed.
 - You can end a quiz early and go to results, after one confirmation. Answers already saved stand, and questions you never reached don't count against the score.
 - Option order is fixed per quiz and question, so resuming shows the same order and the number keys still match. Each question can be attempted once per quiz.
@@ -242,7 +255,11 @@ Create, edit and delete subjects, exams, categories, sources, Chapters and quest
 
 ### Settings
 
-Priority weights and quiz defaults. For now, settings and remembered choices like these are kept in the browser only (localStorage), not in the database.
+Settings are saved in the database as soon as they change: syntax highlighting, option order (see section 2) and the feature flags now, and priority weights and quiz defaults from Stage 7. The choices the take-exam screen remembers for each exam stay in the browser (localStorage). Home links to Settings.
+
+**Feature flags:** extra behaviour beyond the core of this spec can be turned off in Settings. The core itself is never behind a flag. The flags are listed in one module, `src/shared/features.ts`, each with a label, a one-line description, a group and a default, and the Settings page is built from that list, so a new flag needs no other change. Only flags someone has changed are saved, so the rest follow their defaults. The server can check a flag too, for anything it must enforce, such as a feature that calls Claude. A flag is deleted once its feature is settled.
+
+Current flags: source icons, exam icons, keyboard shortcut hints, starred questions, the difficulty buttons, the take-exam question strip, the question squares on tiles, and the counts on the status options.
 
 ## 4. Question selection
 
@@ -297,12 +314,12 @@ Rules for both routes:
 
 - Images aren't supported, so questions that depend on one are left out of the bank and listed in the import report. This includes the image questions in the OutSystems practice exam.
 - Duplicates (matching `contentHash` anywhere in the exam) are shown in review and skipped unless you choose to include them, and it's pointed out if two sources disagree on the answer.
-- Re-importing with the same `externalId` updates the question and keeps its history, including its option IDs. `externalId` is recommended rather than required. Without one, a question is matched by its text within the source, so one whose wording changes counts as new.
+- Re-importing with the same `externalId` updates the question and keeps its history, including its option IDs. `externalId` is recommended rather than required. Without one, a question is matched by its text within the source, so one whose wording changes counts as new. An option keeps its ID when its text is the same, matched exactly first and then ignoring spacing and capitals, so options such as `Long` and `long` stay apart.
 - Questions the file doesn't mention are left alone.
 - If an update changes the answer key, past answers are marked again, the same as a correction in Manage.
 - A question with a `reviewNote` is how the skill raises a doubt, such as a source's answer that looks wrong, without silently changing it. See Quality in section 2.
 - **The file wins.** Re-importing overwrites changes made in the app to that question's text, options and answers, including hand edits. The exceptions: a question deleted in the app stays deleted, and a flag stays. If the update changes the question, any doubt in the file opens for review again.
-- **Source text is ground truth.** Explanation text from a source can replace anything. AI-written text only fills a blank or replaces other AI-written text, and the preview says where it was held back. A blank in a file never wipes existing text.
+- **Source text is ground truth.** Explanation text from a source can replace anything. AI-written text only fills a blank or replaces other AI-written text, and the preview says where it was held back. A blank in a file removes source text there, because the file is the source's own words and may have moved them, such as from the options onto the question. A blank never removes AI-written text.
 - **Categories:** the preview lists every category name in the file and whether it's an official category, an official topic, an unofficial one added before, or a name mapped before. For each new name you choose: put its questions into an existing category or topic, which merges them, or keep it as a new unofficial category. A name that matches an existing one apart from case is suggested. Choices are remembered, so the next file from that source imports the same way. Renaming and merging existing categories comes with Manage.
 
 ## 6. Claude features
@@ -359,10 +376,11 @@ Other rules:
 
 ## 8. Developer views
 
-Available from a footer link, for admin only.
+Available from footer links, for admin only. The links show on the home and take-exam screens, not during a quiz.
 
 - **Data inspector (`/dev/data`):** every table in simple read-only form, with sorting, paging and refresh, so you can confirm that each action wrote what it should.
-- **Component gallery (`/dev/components`):** the theme tokens and every component in all of its states on one page, using static sample content.
+- **Component gallery (`/dev/components`):** the theme tokens and every component in all of its states on one page, using static sample content. It's the reference for how things look, and shows every feature switched on whatever Settings says.
+- **Question viewer (`/dev/questions`):** pick a source and see its questions as one piece of JSON with a copy button, to paste into another LLM that, with the skill, writes new questions on what you found hard. Questions are laid out as in the question bank format, each with your history: attempts, how many were right, and whether it's starred. Toggles narrow it to questions matching any that are on: **Starred**, **Incorrect** (ever answered wrongly or revealed, even if right since), **Correct** (right first time and never wrong) and **Unsolved** (never right, including never tried). With none on, every question shows. Deleted and flagged questions are left out. The source and toggles are kept in the address.
 - **Theme:** fonts, colours, type, spacing and radii are CSS variable tokens mapped into Tailwind, so one change applies everywhere. Each look is a saved file in `src/client/themes/`, and one line in `src/client/theme.css` chooses which is active, so new looks can be tried and reverted. The tokens leave room for a dark mode later.
 
 ## 9. Technical notes
@@ -388,4 +406,4 @@ Follows `stack.md`, including its CLAUDE.md rules.
 - **Topics in the data model:** topics aren't selectable tiles, and won't be. Revisit how topics are captured, especially when Java's question sets arrive, so the data stays useful for stats and readiness.
 - **Sort options:** Random and Source order for now. The final set, including Easiest and Hardest 1st, is to be decided.
 - **Progress bars and Status:** the part the status picks stands out. Revisit whether Unsolved should split the yellow.
-- **Styling:** spacing and readability, starting at the Stage 2 review. `preview/index.html` is a guide to structure only.
+- **Styling:** spacing and readability, starting at the Stage 2 review. `docs/archive/preview.html` was a guide to structure only.

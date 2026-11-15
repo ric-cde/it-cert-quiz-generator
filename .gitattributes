@@ -1,0 +1,6 @@
+# LF everywhere, on every machine, so scripted edits and editors never mix line endings.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.zip binary
+*.woff2 binary

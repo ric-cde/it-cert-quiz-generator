@@ -70,7 +70,9 @@ const unknown = unknownCategories(bank, exam)
 const withQuestionText = questions.filter((question) => question.type !== 'free_form' && question.explanationMd)
 const unexplainedQuestions = questions.filter(
   (question) =>
-    question.type !== 'free_form' && !question.explanationMd && !question.options.some((option) => option.explanationMd),
+    question.type !== 'free_form' &&
+    !question.explanationMd &&
+    !question.options.some((option) => option.explanationMd),
 )
 
 console.log(`Exam: ${bank.exam}`)
@@ -86,12 +88,18 @@ if (unknown.size > 0) {
 }
 console.log(`Options with explanations: ${withText.length} of ${options.length}`)
 console.log(`Questions with their own explanation: ${withQuestionText.length}`)
+const labelled = questions.filter(
+  (question) => question.type !== 'free_form' && question.options.some((option) => option.label),
+)
+if (labelled.length > 0) console.log(`Questions with labelled options: ${labelled.length}`)
 console.log(`Multiple choice questions with no explanation at all: ${unexplainedQuestions.length}`)
 console.log(`Marked for review: ${questions.filter((question) => question.reviewNote).length}`)
 // A question under review has good reason for no explanation: it shouldn't justify a doubtful answer.
+// A labelled one explains its options in its own text, by letter.
 const unexplained = questions
-  .filter((question) => !question.reviewNote)
-  .flatMap((question) => (question.type === 'free_form' ? [] : question.options))
+  .flatMap((question) => (question.type === 'free_form' || question.reviewNote ? [] : [question]))
+  .filter((question) => !(labelled.includes(question) && question.explanationMd))
+  .flatMap((question) => question.options)
   .filter((option) => option.isCorrect && !option.explanationMd).length
 console.log(`Correct options with no explanation: ${unexplained}`)
 
@@ -107,4 +115,6 @@ if (values.expected !== undefined) {
   console.log(`Count matches the source: ${expected}`)
 }
 
-console.log(warnings.length > 0 ? `\nValid, with ${warnings.length} warning(s) to judge.` : '\nValid, with no warnings.')
+console.log(
+  warnings.length > 0 ? `\nValid, with ${warnings.length} warning(s) to judge.` : '\nValid, with no warnings.',
+)

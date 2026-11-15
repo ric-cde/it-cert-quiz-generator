@@ -53,7 +53,9 @@ describe('the built skill', () => {
     })
 
     it('meets the limits for a skill', () => {
-      const [, frontmatter, body] = text('SKILL.md').replaceAll('\r\n', '\n').match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)!
+      const [, frontmatter, body] = text('SKILL.md')
+        .replaceAll('\r\n', '\n')
+        .match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)!
       const field = (name: string) => frontmatter!.match(new RegExp(`^${name}: (.*)$`, 'm'))![1]!
 
       expect(field('name')).toBe(SKILL_NAME)
@@ -66,7 +68,11 @@ describe('the built skill', () => {
     })
 
     it('mentions only files that exist', () => {
-      const mentioned = [...text('SKILL.md').matchAll(/`((?:references|assets|scripts)\/[\w.-]+)`|\]\(((?:references|assets|scripts)\/[\w.-]+)\)/g)]
+      const mentioned = [
+        ...text('SKILL.md').matchAll(
+          /`((?:references|assets|scripts)\/[\w.-]+)`|\]\(((?:references|assets|scripts)\/[\w.-]+)\)/g,
+        ),
+      ]
       expect(mentioned.length).toBeGreaterThan(5)
       for (const match of mentioned) {
         const name = match[1] ?? match[2]!
@@ -75,7 +81,9 @@ describe('the built skill', () => {
     })
 
     it('carries the current schema and every exam with its categories', () => {
-      expect(JSON.parse(text('assets/question-bank.schema.json'))).toEqual(JSON.parse(JSON.stringify(questionBankJsonSchema())))
+      expect(JSON.parse(text('assets/question-bank.schema.json'))).toEqual(
+        JSON.parse(JSON.stringify(questionBankJsonSchema())),
+      )
 
       const exams = JSON.parse(text('assets/exams.json')) as { name: string; categories: string[]; syllabus?: string }[]
       expect(exams.map((exam) => exam.name)).toEqual(SEED_EXAMS.map((item) => item.exam))
@@ -99,7 +107,8 @@ describe('the built skill', () => {
     it('names the highlighted languages correctly in the guide', () => {
       const highlighter = readFileSync('src/client/lib/highlight.ts', 'utf8')
       const line = text('references/format-guide.md').match(/\*\*Languages highlighted:\*\* (.*)\. Others/)![1]!
-      for (const [, language] of line.matchAll(/`(\w+)`/g)) expect(highlighter, language).toContain(`${language}: () =>`)
+      for (const [, language] of line.matchAll(/`(\w+)`/g))
+        expect(highlighter, language).toContain(`${language}: () =>`)
     })
   })
 
@@ -113,16 +122,28 @@ describe('the built skill', () => {
       expect(mock.stdout).toContain('Valid, with no warnings.')
       expect(mock.stdout).toContain('8 included, 2 omitted')
       expect(mock.stdout).toContain('Marked for review: 1')
-      expect(mock.stdout).toContain('Questions with their own explanation: 3')
+      expect(mock.stdout).toContain('Questions with their own explanation: 5')
+      expect(mock.stdout).toContain('Questions with labelled options: 6')
       expect(mock.stdout).toContain('Count matches the source: 10')
     })
 
     it('counts correct options with no explanation, but not on a question under review', () => {
       const bank = JSON.parse(readFileSync(EXPECTED, 'utf8'))
       const before = validate(EXPECTED).stdout.match(/Correct options with no explanation: (\d+)/)![1]
-      bank.chapters[0].questions[1].options.find((o: { isCorrect: boolean }) => o.isCorrect).explanationMd = 'Because.'
+      bank.chapters[0].questions[2].options.find((o: { isCorrect: boolean }) => o.isCorrect).explanationMd = 'Because.'
       const result = validate(writeTemp('explained.json', JSON.stringify(bank)))
       expect(result.stdout).toContain(`Correct options with no explanation: ${Number(before) - 1}`)
+    })
+
+    it("counts labelled questions, and lets a labelled question's own explanation cover its options", () => {
+      const result = validate('docs/question-bank.example.json')
+      expect(result.stdout).toContain('Questions with labelled options: 1')
+
+      const example = JSON.parse(readFileSync('docs/question-bank.example.json', 'utf8'))
+      const before = Number(result.stdout.match(/Correct options with no explanation: (\d+)/)![1])
+      delete example.chapters[0].questions.find((q: { externalId: string }) => q.externalId === 'mock-5').explanationMd
+      const bare = validate(writeTemp('labelled.json', JSON.stringify(example)))
+      expect(bare.stdout).toContain(`Correct options with no explanation: ${before + 2}`)
     })
 
     it('counts questions with no explanation anywhere', () => {
@@ -156,7 +177,11 @@ describe('the built skill', () => {
       const bank = JSON.parse(readFileSync(EXPECTED, 'utf8'))
       const exams = [{ name: bank.exam, categories: ['Parent', 'Other'], topics: { Parent: ['Child'] } }]
       for (const question of bank.chapters[0].questions) question.category = 'Child'
-      const result = validate(writeTemp('topics.json', JSON.stringify(bank)), '--exams', writeTemp('topic-exams.json', JSON.stringify(exams)))
+      const result = validate(
+        writeTemp('topics.json', JSON.stringify(bank)),
+        '--exams',
+        writeTemp('topic-exams.json', JSON.stringify(exams)),
+      )
       expect(result.stdout).not.toContain("Not the exam's own")
       expect(result.stdout).toContain('Categories with no questions: Other')
     })
@@ -186,7 +211,10 @@ describe('the built skill', () => {
 
       expect(validate(file).stdout).toContain('No exam is called "Any Other Exam"')
 
-      const exams = writeTemp('other-exams.json', JSON.stringify([{ name: 'Any Other Exam', categories: ['Topic one', 'Topic two'] }]))
+      const exams = writeTemp(
+        'other-exams.json',
+        JSON.stringify([{ name: 'Any Other Exam', categories: ['Topic one', 'Topic two'] }]),
+      )
       const result = validate(file, '--exams', exams)
       expect(result.status, result.stdout).toBe(0)
       expect(result.stdout).toContain('Categories with no questions: Topic two')
@@ -200,13 +228,23 @@ describe('the built skill', () => {
     })
 
     it('does not tie its instructions to particular exams', () => {
-      const guides = ['SKILL.md', 'references/format-guide.md', 'references/source-pitfalls.md', 'references/writing-guide.md']
+      const guides = [
+        'SKILL.md',
+        'references/format-guide.md',
+        'references/source-pitfalls.md',
+        'references/writing-guide.md',
+      ]
       for (const name of guides) expect(text(name), name).not.toMatch(/OutSystems|Boyarsky|OCP/i)
     })
 
     it('accepts a different list of exams', () => {
       const bank = JSON.parse(readFileSync(EXPECTED, 'utf8'))
-      const exams = [{ name: bank.exam, categories: [...new Set(bank.chapters[0].questions.map((q: { category: string }) => q.category))] }]
+      const exams = [
+        {
+          name: bank.exam,
+          categories: [...new Set(bank.chapters[0].questions.map((q: { category: string }) => q.category))],
+        },
+      ]
       const result = validate(EXPECTED, '--exams', writeTemp('exams.json', JSON.stringify(exams)))
       expect(result.status, result.stdout).toBe(0)
     })

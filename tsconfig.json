@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "paths": { "@/*": ["./src/client/*"] }
+    "paths": { "@/*": ["./src/client/*"], "@shared/*": ["./src/shared/*"] }
   },
   "include": ["src", "e2e", "scripts", "*.ts"]
 }

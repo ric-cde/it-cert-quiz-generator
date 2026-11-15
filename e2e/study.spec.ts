@@ -36,13 +36,20 @@ const noViolations = async (page: Page) => {
   expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([])
 }
 const noSidewaysScroll = async (page: Page) => {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
   expect(overflow).toBeLessThanOrEqual(0)
 }
 
 /** The live count's two numbers: how many you'll get, and how many are available. */
 async function liveCount(page: Page) {
-  const text = (await page.getByText(/of \d+ available/).locator('..').innerText()).replace(/\s+/g, ' ')
+  const text = (
+    await page
+      .getByText(/of \d+ available/)
+      .locator('..')
+      .innerText()
+  ).replace(/\s+/g, ' ')
   const [, selected, available] = /(\d+) of (\d+) available/.exec(text)!
   return { selected: Number(selected), available: Number(available) }
 }
@@ -54,11 +61,11 @@ test('the full study flow: choose, count, answer at the end, review and retry mi
   await page.goto('/')
   await expect(page.getByRole('progressbar', { name: `${name} progress` })).toHaveAttribute('aria-valuenow', '0')
   await page.getByRole('link', { name: `Practise ${EXAM}` }).click()
-  await expect(page.getByRole('button', { name: /^Random/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'true')
 
   // One source, then narrowed to one of its chapters.
   await sourceTile(page, name).click()
-  await expect(page.getByRole('button', { name: /^Random/ })).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => liveCount(page)).toEqual({ selected: 3, available: 3 })
   await page.getByRole('button', { name: `2 chapters in ${name}` }).click()
   await page.getByRole('button', { name: new RegExp(`^${name} chapter one`) }).click()
@@ -72,7 +79,10 @@ test('the full study flow: choose, count, answer at the end, review and retry mi
   await sourceTile(page, name).click()
   await sourceTile(page, name).click()
   await expect.poll(() => liveCount(page)).toEqual({ selected: 3, available: 3 })
-  await page.getByRole('textbox', { name: 'Custom number of questions' }).or(page.getByLabel('Custom number of questions')).fill('2')
+  await page
+    .getByRole('textbox', { name: 'Custom number of questions' })
+    .or(page.getByLabel('Custom number of questions'))
+    .fill('2')
   await expect.poll(() => liveCount(page)).toEqual({ selected: 2, available: 3 })
 
   // Max takes them all, and the quiz has exactly the count it showed.
@@ -83,10 +93,16 @@ test('the full study flow: choose, count, answer at the end, review and retry mi
   await expect(page.getByText(/Question 1 of 3/)).toBeVisible()
 
   // Right, wrong, then skipped.
-  await page.getByText(/right [abc]$/).first().click()
+  await page
+    .getByText(/right [abc]$/)
+    .first()
+    .click()
   await page.keyboard.press('Enter')
   await expect(page.getByText(/Question 2 of 3/)).toBeVisible()
-  await page.getByText(/wrong [abc]$/).first().click()
+  await page
+    .getByText(/wrong [abc]$/)
+    .first()
+    .click()
   await page.keyboard.press('Enter')
   await expect(page.getByText(/Question 3 of 3/)).toBeVisible()
   await page.keyboard.press('Enter')
@@ -110,7 +126,9 @@ test('the full study flow: choose, count, answer at the end, review and retry mi
   await expect(page.getByRole('progressbar', { name: `${name} progress` })).toHaveAttribute('aria-valuenow', '33')
 })
 
-test('clicking anywhere on an exam card opens it, and a source row opens it with that source picked', async ({ page }) => {
+test('clicking anywhere on an exam card opens it, and a source row opens it with that source picked', async ({
+  page,
+}) => {
   await importBank(page, 'Card click')
   await page.goto('/')
   // Near the title, where only the card's own link is.
@@ -153,7 +171,9 @@ test('the status filter counts only what it should', async ({ page }) => {
 })
 
 for (const screen of ['home', 'take exam'] as const) {
-  test(`the ${screen} screen has no accessibility violations and doesn't scroll sideways on a phone`, async ({ page }) => {
+  test(`the ${screen} screen has no accessibility violations and doesn't scroll sideways on a phone`, async ({
+    page,
+  }) => {
     await importBank(page, `Screen check ${screen}`)
     await page.setViewportSize({ width: 360, height: 740 })
     await page.goto('/')

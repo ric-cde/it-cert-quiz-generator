@@ -37,11 +37,11 @@ describe('SourceIconPicker', () => {
     expect(screen.queryByRole('button', { name: 'Fox' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Source icon/ }))
-    expect(screen.getAllByRole('button', { name: /^(Fox|Owl|Polar bear)$/ }).map((button) => button.getAttribute('aria-label'))).toEqual([
-      'Fox',
-      'Owl',
-      'Polar bear',
-    ])
+    expect(
+      screen
+        .getAllByRole('button', { name: /^(Fox|Owl|Polar bear)$/ })
+        .map((button) => button.getAttribute('aria-label')),
+    ).toEqual(['Fox', 'Owl', 'Polar bear'])
     expect(screen.getByRole('button', { name: 'Owl' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Fox' })).toHaveAttribute('aria-pressed', 'false')
   })
@@ -105,6 +105,7 @@ describe('where a source icon shows', () => {
           exam={{
             id: 1,
             name: 'An exam',
+            subject: 'A subject',
             status: 'active',
             progress,
             sources: [
@@ -117,7 +118,9 @@ describe('where a source icon shows', () => {
     )
     const sources = screen.getByRole('list', { name: 'Sources for An exam' })
     expect(sources.querySelectorAll('img')).toHaveLength(2)
-    expect(container.querySelectorAll('img')[0]!.getAttribute('src')).not.toBe(container.querySelectorAll('img')[1]!.getAttribute('src'))
+    expect(container.querySelectorAll('img')[0]!.getAttribute('src')).not.toBe(
+      container.querySelectorAll('img')[1]!.getAttribute('src'),
+    )
     // The name is still the link's text.
     expect(screen.getByRole('link', { name: 'First' })).toBeInTheDocument()
   })

@@ -10,7 +10,7 @@ export const sourceTile = (page: Page, name: string) =>
 
 /**
  * Starts a quiz of one source the way you would: home, Practise, the source's tile, then the
- * options. Tests share one database, so each picks its own source rather than Random.
+ * options. Tests share one database, so each picks its own source rather than All sources.
  */
 export async function startSource(page: Page, name: string, feedback: 'After each question' | 'At the end') {
   await page.goto('/')

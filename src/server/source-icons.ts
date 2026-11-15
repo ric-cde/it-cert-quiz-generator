@@ -17,7 +17,10 @@ export function iconOptions(db: Reader, sourceId?: number) {
     .where(sourceId === undefined ? undefined : ne(sources.id, sourceId))
     .all()
     .map((row) => row.icon)
-  const current = sourceId === undefined ? null : db.select({ icon: sources.icon }).from(sources).where(eq(sources.id, sourceId)).get()?.icon
+  const current =
+    sourceId === undefined
+      ? null
+      : db.select({ icon: sources.icon }).from(sources).where(eq(sources.id, sourceId)).get()?.icon
   const icon = isIconKey(current) ? current : suggestIcon(others)
   // Its own icon is always one of the choices, even in a later round when others hold it too.
   const choices = new Set([...iconChoices(others), icon])

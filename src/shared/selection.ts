@@ -16,6 +16,8 @@ export const selectionSchema = z.strictObject({
   sourceIds: ids,
   chapterIds: ids,
   status: z.enum(STATUSES).default('all'),
+  /** Only the questions you've starred. */
+  starred: z.boolean().default(false),
 })
 export type Selection = z.output<typeof selectionSchema>
 export type SelectionInput = z.input<typeof selectionSchema>
@@ -23,27 +25,10 @@ export type SelectionInput = z.input<typeof selectionSchema>
 export const isRandom = (selection: Pick<Selection, 'categoryIds' | 'sourceIds' | 'chapterIds'>) =>
   selection.categoryIds.length === 0 && selection.sourceIds.length === 0 && selection.chapterIds.length === 0
 
-export type ProgressCounts = { correct: number; incorrect: number; total: number }
-
-export const EXAM_STATUSES = ['active', 'passed', 'abandoned'] as const
-export type ExamStatus = (typeof EXAM_STATUSES)[number]
-export const examStatusBody = z.strictObject({ status: z.enum(EXAM_STATUSES) })
-
-export type HomeSource = { id: number; name: string; icon: string | null; progress: ProgressCounts }
-export type HomeExam = { id: number; name: string; status: ExamStatus; progress: ProgressCounts; sources: HomeSource[] }
-export type HomeSubject = { id: number; name: string; exams: HomeExam[] }
-export type HomeQuiz = {
-  id: number
-  exam: string
-  label: string
-  feedback: 'after_each' | 'at_end'
-  position: number
+export type ProgressCounts = {
+  /** Questions whose latest attempt was correct. */
+  correct: number
+  /** Questions attempted, whose latest attempt wasn't correct. */
+  incorrect: number
   total: number
-  /** ISO 8601. */
-  startedAt: string
 }
-/**
- * Subjects list only the exams still being studied. Passed and abandoned exams move to their own
- * lists at the bottom, in the same order.
- */
-export type HomeOverview = { subjects: HomeSubject[]; passed: HomeExam[]; abandoned: HomeExam[]; unfinished: HomeQuiz[] }

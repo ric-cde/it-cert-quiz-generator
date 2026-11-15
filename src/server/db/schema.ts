@@ -16,8 +16,10 @@ import {
   ATTEMPT_RESULTS,
   DRAFT_KINDS,
   DRAFT_STATUSES,
+  DEFAULT_OPTION_ORDER,
   EXPLANATION_ORIGINS,
   type ExplanationSource,
+  OPTION_ORDERS,
   type PriorityWeights,
   QUESTION_TYPES,
   type QuizConfig,
@@ -205,6 +207,8 @@ export const options = sqliteTable(
     questionId: integer('question_id')
       .notNull()
       .references(() => questions.id),
+    // The option's letter in the source, such as "A", when its explanation refers to options by letter.
+    label: text('label'),
     bodyMd: text('body_md').notNull(),
     explanationMd: text('explanation_md'),
     explanationOrigin: text('explanation_origin', { enum: EXPLANATION_ORIGINS }),
@@ -304,6 +308,40 @@ export const questionStats = sqliteTable(
   ],
 )
 
+/** Questions a user has starred, to come back to. Kept apart from `question_stats`, which can be rebuilt. */
+export const questionStars = sqliteTable(
+  'question_stars',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.questionId] })],
+)
+
+/**
+ * How far a user has moved a question's difficulty by hand, in steps. Kept apart from
+ * `question_stats`, which can be rebuilt: a rebuild replays the attempts, then adds these steps.
+ * Experimental, behind the `difficultyButtons` flag.
+ */
+export const difficultyAdjustments = sqliteTable(
+  'difficulty_adjustments',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id),
+    steps: integer('steps').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.questionId] })],
+)
+
 /* ---------- Claude and settings ---------- */
 
 export const drafts = sqliteTable('drafts', {
@@ -334,4 +372,7 @@ export const settings = sqliteTable('settings', {
   priorityWeights: text('priority_weights', { mode: 'json' }).$type<PriorityWeights>().notNull(),
   quizDefaults: text('quiz_defaults', { mode: 'json' }).$type<QuizDefaults>().notNull(),
   syntaxHighlighting: bool('syntax_highlighting').notNull().default(true),
+  optionOrder: text('option_order', { enum: OPTION_ORDERS }).notNull().default(DEFAULT_OPTION_ORDER),
+  // Only the feature flags someone has changed. The rest take their default from shared/features.ts.
+  features: text('features', { mode: 'json' }).$type<Record<string, boolean>>().notNull().default({}),
 })

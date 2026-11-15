@@ -69,7 +69,10 @@ describe('seed', () => {
     for (const item of SEED_EXAMS) {
       for (const category of item.categories) {
         if (!category.topics) continue
-        expect(category.topics.reduce((sum, t) => sum + (t.weight ?? 0), 0), category.name).toBe(category.weight)
+        expect(
+          category.topics.reduce((sum, t) => sum + (t.weight ?? 0), 0),
+          category.name,
+        ).toBe(category.weight)
       }
     }
   })
@@ -79,14 +82,27 @@ describe('seed', () => {
     const file = join(dir, 'quiz.db')
     const first = openDb(file)
     first.delete(categories).where(eq(categories.name, 'Aggregates')).run()
-    first.delete(categories).where(eq(categories.parentId, first.select().from(categories).where(eq(categories.name, 'UI Design')).get()!.id)).run()
+    first
+      .delete(categories)
+      .where(eq(categories.parentId, first.select().from(categories).where(eq(categories.name, 'UI Design')).get()!.id))
+      .run()
     // Pretend no exam has topics yet, apart from one removed by hand.
-    const topicIds = first.select().from(categories).all().filter((c) => c.parentId !== null)
+    const topicIds = first
+      .select()
+      .from(categories)
+      .all()
+      .filter((c) => c.parentId !== null)
     for (const topic of topicIds) first.delete(categories).where(eq(categories.id, topic.id)).run()
     first.$client.close()
 
     const again = openDb(file)
-    expect(again.select().from(categories).all().filter((c) => c.parentId !== null)).toHaveLength(14)
+    expect(
+      again
+        .select()
+        .from(categories)
+        .all()
+        .filter((c) => c.parentId !== null),
+    ).toHaveLength(14)
 
     again.delete(categories).where(eq(categories.name, 'Aggregates')).run()
     again.$client.close()
@@ -114,7 +130,14 @@ describe('seed', () => {
 
   it('stores default settings for the admin', () => {
     expect(db.select().from(settings).all()).toEqual([
-      { userId: 1, priorityWeights: DEFAULT_PRIORITY_WEIGHTS, quizDefaults: DEFAULT_QUIZ_DEFAULTS, syntaxHighlighting: true },
+      {
+        userId: 1,
+        priorityWeights: DEFAULT_PRIORITY_WEIGHTS,
+        quizDefaults: DEFAULT_QUIZ_DEFAULTS,
+        syntaxHighlighting: true,
+        optionOrder: 'labelled',
+        features: {},
+      },
     ])
   })
 
@@ -179,7 +202,13 @@ describe('schema', () => {
       .get()
     const quiz = db
       .insert(quizzes)
-      .values({ userId: 1, examId: 1, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question.id] })
+      .values({
+        userId: 1,
+        examId: 1,
+        mode: 'study',
+        config: { feedback: 'after_each', sourceId: 1 },
+        questionIds: [question.id],
+      })
       .returning()
       .get()
     const attempt = db
@@ -217,7 +246,13 @@ describe('schema', () => {
     const { question } = addMockQuestion(db)
     const quiz = db
       .insert(quizzes)
-      .values({ userId: 1, examId: 1, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question.id] })
+      .values({
+        userId: 1,
+        examId: 1,
+        mode: 'study',
+        config: { feedback: 'after_each', sourceId: 1 },
+        questionIds: [question.id],
+      })
       .returning()
       .get()
     db.insert(attempts)
@@ -240,7 +275,10 @@ describe('schema', () => {
 
   it.each([1, 5, null])('accepts a source rating of %s', (rating) => {
     expect(() =>
-      db.insert(sources).values({ examId: 1, name: `rated ${rating}`, origin: 'upload', rating }).run(),
+      db
+        .insert(sources)
+        .values({ examId: 1, name: `rated ${rating}`, origin: 'upload', rating })
+        .run(),
     ).not.toThrow()
   })
 

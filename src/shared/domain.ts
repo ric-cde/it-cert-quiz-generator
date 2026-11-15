@@ -1,3 +1,5 @@
+import type { Selection } from './selection'
+
 /** The fixed values and JSON shapes in the data model, shared by the server and client. */
 
 export const ROLES = ['admin', 'editor', 'learner'] as const
@@ -15,6 +17,14 @@ export type Feedback = (typeof FEEDBACK_MODES)[number]
 /** The take-exam Sort option. Easiest and hardest first arrive with Stage 7, and the final set is to be decided. */
 export const QUIZ_SORTS = ['random', 'source'] as const
 export type QuizSort = (typeof QUIZ_SORTS)[number]
+/**
+ * How options are ordered within a question. `labelled` keeps options that carry the source's
+ * letters in the source's order and shuffles the rest. A question with `lockOptionOrder` always
+ * keeps its order, because its options depend on it, such as "All of the above".
+ */
+export const OPTION_ORDERS = ['labelled', 'source', 'shuffle'] as const
+export type OptionOrder = (typeof OPTION_ORDERS)[number]
+export const DEFAULT_OPTION_ORDER: OptionOrder = 'labelled'
 export const ATTEMPT_RESULTS = ['correct', 'partial', 'incorrect', 'pending'] as const
 export const ATTEMPT_KINDS = ['answered', 'revealed'] as const
 export const DRAFT_KINDS = ['import', 'generate'] as const
@@ -37,18 +47,15 @@ export type QuizConfig = {
   /** Set by quizzes from before the current naming rules. Names are now worked out when shown. */
   label?: string
   /** The take-exam tiles and status filter it was made from. */
-  selection?: {
-    categoryIds: number[]
-    sourceIds: number[]
-    chapterIds: number[]
-    status: 'all' | 'unanswered' | 'incorrect' | 'unsolved'
-  }
+  selection?: Selection
   limit?: number
   sort?: QuizSort
   /** Retry missed: the quiz whose misses this one asks again. */
   retryOf?: number
   /** Stage 5 quizzes were started from one source. */
   sourceId?: number
+  /** The option order setting when the quiz began, so changing it never reorders a quiz. Older quizzes shuffled. */
+  optionOrder?: OptionOrder
 }
 
 export type QuizDefaults = {

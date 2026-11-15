@@ -2,10 +2,13 @@ import clsx from 'clsx'
 import { ArrowRight, Ellipsis, GraduationCap } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { Link } from 'react-router'
-import type { ExamStatus, HomeExam } from '../../shared/selection'
+import type { ExamStatus, HomeExam } from '@shared/home'
 import { buttonClass } from './Button'
 import { ProgressBar } from './ProgressBar'
 import { SourceIcon } from './SourceIcon'
+import { plural } from '@/lib/quiz-words'
+import { cardClass } from './Card'
+import { ExamIcon } from './ExamIcon'
 
 const ACTIONS: Record<ExamStatus, { label: string; status: ExamStatus }[]> = {
   active: [
@@ -54,7 +57,8 @@ export function ExamCard({ exam, onStatus }: { exam: HomeExam; onStatus?: (statu
     <article
       aria-labelledby={`exam-${exam.id}`}
       className={clsx(
-        'relative rounded-lg border border-line bg-surface p-4 shadow-card transition-[border-color,box-shadow] duration-100 sm:p-5',
+        cardClass(),
+        'relative transition-[border-color,box-shadow] duration-100',
         !empty && 'hover:border-accent/60 hover:shadow-raised',
       )}
     >
@@ -65,18 +69,21 @@ export function ExamCard({ exam, onStatus }: { exam: HomeExam; onStatus?: (statu
         <Link to={`/exam/${exam.id}`} aria-hidden="true" tabIndex={-1} className="absolute inset-0 rounded-lg" />
       )}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <h3 id={`exam-${exam.id}`} className="text-lg leading-snug break-words">
-            {exam.name}
-            {exam.status === 'passed' && (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-bold text-accent-strong">
-                <GraduationCap className="size-3.5" aria-hidden="true" /> Passed
-              </span>
-            )}
-          </h3>
-          <p className="text-xs text-ink-soft">
-            {empty ? 'No questions yet' : `${exam.progress.total} ${exam.progress.total === 1 ? 'question' : 'questions'}`}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <ExamIcon subject={exam.subject} name={exam.name} className="mt-0.5 size-9" />
+          <div className="min-w-0">
+            <h3 id={`exam-${exam.id}`} className="text-lg leading-snug break-words">
+              {exam.name}
+              {exam.status === 'passed' && (
+                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-bold text-accent-strong">
+                  <GraduationCap className="size-3.5" aria-hidden="true" /> Passed
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-ink-soft">
+              {empty ? 'No questions yet' : plural(exam.progress.total, 'question')}
+            </p>
+          </div>
         </div>
         <div className="relative z-10 flex items-center gap-1.5">
           {empty ? (

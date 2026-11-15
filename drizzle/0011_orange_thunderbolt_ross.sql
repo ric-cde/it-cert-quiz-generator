@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `option_order` text DEFAULT 'labelled' NOT NULL;

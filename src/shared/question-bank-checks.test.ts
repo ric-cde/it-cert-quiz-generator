@@ -107,28 +107,150 @@ describe('questionWarnings', () => {
     ['a reference to another question', { bodyMd: 'Using the previous question, what next?' }, /another question/],
     ['generics outside backticks', { bodyMd: 'Is List<String> valid?' }, /disappears/],
     ['a tag outside backticks', { bodyMd: 'Use the <div> element.' }, /disappears/],
-    ['generics in an option', { options: [{ bodyMd: 'List<String>', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /disappears/],
-    ['generics in an explanation', { options: [{ bodyMd: 'A thing', isCorrect: true, explanationMd: 'See Map<K, V>.' }, { bodyMd: 'No', isCorrect: false }] }, /disappears/],
+    [
+      'generics in an option',
+      {
+        options: [
+          { bodyMd: 'List<String>', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /disappears/,
+    ],
+    [
+      'generics in an explanation',
+      {
+        options: [
+          { bodyMd: 'A thing', isCorrect: true, explanationMd: 'See Map<K, V>.' },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /disappears/,
+    ],
     ['garbled characters', { bodyMd: 'Whatâ€™s this?' }, /garbled/],
     ['a ligature', { bodyMd: 'The ﬁrst one?' }, /garbled/],
     ['curly quotes in code', { bodyMd: '```java\nprint(“a”);\n```' }, /curly quotes/],
     ['a code block with no language', { bodyMd: '```\nint x;\n```' }, /doesn't name its language/],
     ['an unclosed code block', { bodyMd: '```java\nint x;' }, /never closed/],
-    ['every option labelled', { options: [{ bodyMd: 'A. Yes', isCorrect: true }, { bodyMd: 'B. No', isCorrect: false }] }, /label/],
-    ['labelled with brackets', { options: [{ bodyMd: '(a) Yes', isCorrect: true }, { bodyMd: '(b) No', isCorrect: false }] }, /label/],
-    ['two identical options', { options: [{ bodyMd: 'Same', isCorrect: true }, { bodyMd: ' same ', isCorrect: false }] }, /same text, ignoring capital letters/],
-    ['a letter in an explanation', { options: [{ bodyMd: 'Yes', isCorrect: true, explanationMd: 'Better than option B.' }, { bodyMd: 'No', isCorrect: false }] }, /by letter/],
-    ['"Both A and B"', { lockOptionOrder: true, options: [{ bodyMd: 'Both A and B', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /by letter/],
-    ['"All of the above" with no lock', { options: [{ bodyMd: 'All of the above', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /lockOptionOrder/],
-    ['"None of these" with no lock', { options: [{ bodyMd: 'None of these', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /lockOptionOrder/],
+    [
+      'every option labelled',
+      {
+        options: [
+          { bodyMd: 'A. Yes', isCorrect: true },
+          { bodyMd: 'B. No', isCorrect: false },
+        ],
+      },
+      /label/,
+    ],
+    [
+      'labelled with brackets',
+      {
+        options: [
+          { bodyMd: '(a) Yes', isCorrect: true },
+          { bodyMd: '(b) No', isCorrect: false },
+        ],
+      },
+      /label/,
+    ],
+    [
+      'two identical options',
+      {
+        options: [
+          { bodyMd: 'Same', isCorrect: true },
+          { bodyMd: ' same ', isCorrect: false },
+        ],
+      },
+      /same text, ignoring capital letters/,
+    ],
+    [
+      'a letter in an explanation',
+      {
+        options: [
+          { bodyMd: 'Yes', isCorrect: true, explanationMd: 'Better than option B.' },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /by letter/,
+    ],
+    [
+      '"Both A and B"',
+      {
+        lockOptionOrder: true,
+        options: [
+          { bodyMd: 'Both A and B', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /by letter/,
+    ],
+    [
+      '"All of the above" with no lock',
+      {
+        options: [
+          { bodyMd: 'All of the above', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /lockOptionOrder/,
+    ],
+    [
+      '"None of these" with no lock',
+      {
+        options: [
+          { bodyMd: 'None of these', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /lockOptionOrder/,
+    ],
     ['the answer left in the question', { bodyMd: 'What is it? The correct answer is B.' }, /included in the question/],
-    ['"Answer:" left in an option', { options: [{ bodyMd: 'Yes\n\nAnswer: yes', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }, /included in the question/],
-    ['a correct option explained as wrong', { options: [{ bodyMd: 'Yes', isCorrect: true, explanationMd: 'Incorrect, because...' }, { bodyMd: 'No', isCorrect: false }] }, /misaligned/],
-    ['a wrong option explained as correct', { options: [{ bodyMd: 'Yes', isCorrect: true }, { bodyMd: 'No', isCorrect: false, explanationMd: 'Correct! Because...' }] }, /misaligned/],
-    ['an origin with no explanation', { options: [{ bodyMd: 'Yes', isCorrect: true, explanationOrigin: 'source' }, { bodyMd: 'No', isCorrect: false }] }, /explanationOrigin/],
+    [
+      '"Answer:" left in an option',
+      {
+        options: [
+          { bodyMd: 'Yes\n\nAnswer: yes', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /included in the question/,
+    ],
+    [
+      'a correct option explained as wrong',
+      {
+        options: [
+          { bodyMd: 'Yes', isCorrect: true, explanationMd: 'Incorrect, because...' },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /misaligned/,
+    ],
+    [
+      'a wrong option explained as correct',
+      {
+        options: [
+          { bodyMd: 'Yes', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false, explanationMd: 'Correct! Because...' },
+        ],
+      },
+      /misaligned/,
+    ],
+    [
+      'an origin with no explanation',
+      {
+        options: [
+          { bodyMd: 'Yes', isCorrect: true, explanationOrigin: 'source' },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+      /explanationOrigin/,
+    ],
     ['"choose two" on a single answer question', { bodyMd: 'Which? Choose two.' }, /asks for 2 answers, but 1/],
     ['"select all" on a single answer question', { bodyMd: 'Which? Select all that apply.' }, /type is "single"/],
-    ['too few marked for "choose three"', { type: 'multi', bodyMd: 'Which? Choose 3.', options: fourOptions }, /asks for 3 answers, but 2/],
+    [
+      'too few marked for "choose three"',
+      { type: 'multi', bodyMd: 'Which? Choose 3.', options: fourOptions },
+      /asks for 3 answers, but 2/,
+    ],
   ])('flags %s', (_name, overrides, expected) => {
     expect(questionWarnings(single(overrides)).join(' ')).toMatch(expected)
   })
@@ -139,27 +261,108 @@ describe('questionWarnings', () => {
     ['generics inside a code block', { bodyMd: '```java\nList<String> a;\n```' }],
     ['"choose two" with two marked', { type: 'multi', bodyMd: 'Which? Choose two.', options: fourOptions }],
     ['"choose" with no number', { bodyMd: 'Which would you choose first?' }],
-    ['a locked "All of the above"', { lockOptionOrder: true, options: [{ bodyMd: 'All of the above', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }],
+    [
+      'a locked "All of the above"',
+      {
+        lockOptionOrder: true,
+        options: [
+          { bodyMd: 'All of the above', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+    ],
     ['a number that is part of the question', { bodyMd: '2 + 2 is what?' }],
     ['the image widget, in OutSystems', { bodyMd: 'What does the image widget display?' }],
     ['an image file', { bodyMd: 'Which entity stores the image file?' }],
     ['a capital letter that is not an option', { bodyMd: 'What does the Answer Set hold?' }],
-    ['code with quotes and angle brackets in an option', { options: [{ bodyMd: '```java\nvar a = "<b>";\n```', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }],
-    ['a four-backtick fence containing a fence', { bodyMd: '````markdown\n```\ncode\n```\n````' .replace('````markdown', '````markdown') }],
-    ['an explanation starting "Correct!" on the right option', { options: [{ bodyMd: 'Yes', isCorrect: true, explanationMd: 'Correct! Because.' }, { bodyMd: 'No', isCorrect: false, explanationMd: 'Wrong, because.' }] }],
-    ['options that happen to start with a number', { options: [{ bodyMd: '1 and 2', isCorrect: true }, { bodyMd: 'No', isCorrect: false }] }],
+    [
+      'code with quotes and angle brackets in an option',
+      {
+        options: [
+          { bodyMd: '```java\nvar a = "<b>";\n```', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+    ],
+    [
+      'a four-backtick fence containing a fence',
+      { bodyMd: '````markdown\n```\ncode\n```\n````'.replace('````markdown', '````markdown') },
+    ],
+    [
+      'an explanation starting "Correct!" on the right option',
+      {
+        options: [
+          { bodyMd: 'Yes', isCorrect: true, explanationMd: 'Correct! Because.' },
+          { bodyMd: 'No', isCorrect: false, explanationMd: 'Wrong, because.' },
+        ],
+      },
+    ],
+    [
+      'options that happen to start with a number',
+      {
+        options: [
+          { bodyMd: '1 and 2', isCorrect: true },
+          { bodyMd: 'No', isCorrect: false },
+        ],
+      },
+    ],
   ])('leaves alone %s', (_name, overrides) => {
     expect(questionWarnings(single(overrides))).toEqual([])
   })
 
   it('also checks free-form questions', () => {
-    const question = { externalId: 'q1', type: 'free_form', category: 'Logic', bodyMd: 'Why?', modelAnswerMd: 'Because of List<T>.' }
+    const question = {
+      externalId: 'q1',
+      type: 'free_form',
+      category: 'Logic',
+      bodyMd: 'Why?',
+      modelAnswerMd: 'Because of List<T>.',
+    }
     expect(questionWarnings(question as Question).join(' ')).toMatch(/disappears/)
   })
 })
 
+describe('questionWarnings with labelled options', () => {
+  const lettered = (explanationMd: string, overrides: object = {}) =>
+    single({
+      type: 'multi',
+      explanationMd,
+      options: [
+        { label: 'A', bodyMd: '`Double[][]`', isCorrect: true },
+        { label: 'B', bodyMd: '`Object`', isCorrect: false },
+        { label: 'C', bodyMd: '`char[]`', isCorrect: true },
+      ],
+      ...overrides,
+    })
+
+  it('lets the explanation refer to options by their labels', () => {
+    expect(questionWarnings(lettered('A, C. Arrays work, making options A and C correct. Option B does not.'))).toEqual(
+      [],
+    )
+  })
+
+  it('warns when the explanation names a label no option has', () => {
+    expect(questionWarnings(lettered('A, C. Options A and C are arrays, and option D is not.'))).toEqual([
+      expect.stringMatching(/option D, but no option has that label/),
+    ])
+  })
+
+  it("warns when the answer at the start of the explanation isn't the options marked correct", () => {
+    expect(questionWarnings(lettered('A, B. Both work.'))).toEqual([
+      expect.stringMatching(/starts with the answer A, B, but the options marked correct are A, C/),
+    ])
+  })
+
+  it('still warns about letters in a question whose options have no labels, including its own explanation', () => {
+    expect(questionWarnings(single({ explanationMd: 'Option B is wrong.' }))).toEqual([
+      expect.stringMatching(/by letter/),
+    ])
+  })
+})
+
 describe('warnings about the whole file', () => {
-  const numbered = (numbers: number[]) => numbers.map((n) => single({ externalId: `set-q${n}`, bodyMd: `Question about ${'x'.repeat(n)}` }))
+  const numbered = (numbers: number[]) =>
+    numbers.map((n) => single({ externalId: `set-q${n}`, bodyMd: `Question about ${'x'.repeat(n)}` }))
 
   it('reports a gap in the numbering, because a question may have been lost', () => {
     const warnings = warningsFor(bank(numbered([1, 2, 5])))
@@ -167,13 +370,18 @@ describe('warnings about the whole file', () => {
   })
 
   it('accepts a gap that is explained in omitted', () => {
-    const omitted = [{ reference: 'Set 1, question 3', reason: 'Image' }, { reference: 'Q4', reason: 'Image' }]
+    const omitted = [
+      { reference: 'Set 1, question 3', reason: 'Image' },
+      { reference: 'Q4', reason: 'Image' },
+    ]
     expect(warningsFor(bank(numbered([1, 2, 5]), { omitted }))).toEqual([])
   })
 
   it('reports a question repeated in the file', () => {
     const warnings = warningsFor(bank([single(), single({ externalId: 'q2' })]))
-    expect(warnings).toEqual([{ location: 'One, question 2 (q2)', message: expect.stringContaining('same question as One, question 1') }])
+    expect(warnings).toEqual([
+      { location: 'One, question 2 (q2)', message: expect.stringContaining('same question as One, question 1') },
+    ])
   })
 
   const answeredAt = (positions: number[]) =>
@@ -206,7 +414,13 @@ describe('questionFingerprint', () => {
   ]
 
   it('ignores option order, spacing, case, and which is marked correct', () => {
-    const reordered = single({ bodyMd: ' a   QUESTION? ', options: [{ bodyMd: 'two', isCorrect: true }, { bodyMd: 'ONE', isCorrect: false }] })
+    const reordered = single({
+      bodyMd: ' a   QUESTION? ',
+      options: [
+        { bodyMd: 'two', isCorrect: true },
+        { bodyMd: 'ONE', isCorrect: false },
+      ],
+    })
     expect(questionFingerprint(reordered)).toBe(questionFingerprint(single({ options })))
   })
 

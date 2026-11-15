@@ -43,7 +43,9 @@ export function FileDrop({
         className={clsx(
           'flex flex-col items-center gap-1 rounded-lg border-[1.5px] border-dashed px-4 py-8 text-center transition-colors duration-100',
           'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent',
-          disabled ? 'cursor-not-allowed border-line bg-sunken' : 'cursor-pointer hocus:border-accent hocus:bg-accent-soft/40',
+          disabled
+            ? 'cursor-not-allowed border-line bg-sunken'
+            : 'cursor-pointer hocus:border-accent hocus:bg-accent-soft/40',
           !disabled && (dragging ? 'border-accent bg-accent-soft' : 'border-line-strong bg-surface'),
         )}
       >

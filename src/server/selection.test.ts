@@ -15,7 +15,7 @@ import { type SelectionInput, selectionSchema, type Status } from '../shared/sel
 import { createApi } from './app'
 import { commitImport } from './bank-import'
 import { type Db, openDb } from './db'
-import { categories, chapters, questions, quizzes, sources } from './db/schema'
+import { categories, chapters, questions, questionStars, quizzes, sources, users } from './db/schema'
 import { nameSelection } from './selection'
 
 /* ---------- The rules, on a pool built by hand ---------- */
@@ -29,7 +29,7 @@ const CHAPTER_SOURCE = new Map([
   [22, 2],
 ])
 
-const fresh = { askable: true, attempted: false, latestCorrect: false, everCorrect: false }
+const fresh = { askable: true, attempted: false, latestCorrect: false, everCorrect: false, starred: false }
 const q = (id: number, chapterId: number, categoryId: number, extra: Partial<PoolQuestion> = {}): PoolQuestion => ({
   id,
   chapterId,
@@ -43,13 +43,13 @@ const q = (id: number, chapterId: number, categoryId: number, extra: Partial<Poo
 const pool: Pool = {
   chapterSource: CHAPTER_SOURCE,
   questions: [
-    q(1, 11, 1),
+    q(1, 11, 1, { starred: true }),
     q(2, 11, 2, { attempted: true, latestCorrect: true, everCorrect: true }),
     q(3, 12, 101, { attempted: true, latestCorrect: false, everCorrect: true }),
-    q(4, 12, 2, { attempted: true, latestCorrect: false, everCorrect: false }),
+    q(4, 12, 2, { attempted: true, latestCorrect: false, everCorrect: false, starred: true }),
     q(5, 21, 1),
     q(6, 21, 2, { attempted: true, latestCorrect: true, everCorrect: true }),
-    q(7, 21, 1, { askable: false }),
+    q(7, 21, 1, { askable: false, starred: true }),
   ],
 }
 
@@ -98,6 +98,13 @@ describe('selectQuestions', () => {
     expect(pick({ sourceIds: [1], status: 'unsolved' })).toEqual([1, 4])
   })
 
+  it('keeps only starred questions when asked, on top of the tiles and the status', () => {
+    expect(pick({ starred: true })).toEqual([1, 4])
+    expect(pick({ starred: true, status: 'unanswered' })).toEqual([1])
+    expect(pick({ starred: true, categoryIds: [2] })).toEqual([4])
+    expect(pick({ starred: true, sourceIds: [2] })).toEqual([])
+  })
+
   it('matches nothing for ids that are not in the exam', () => {
     expect(pick({ categoryIds: [999] })).toEqual([])
     expect(pick({ chapterIds: [999] })).toEqual([])
@@ -122,7 +129,8 @@ describe('practiceView', () => {
     questions: [],
   }
   const view = (input: SelectionInput) => practiceView(data, pool, selectionSchema.parse(input))
-  const counts = (tiles: { id: number; count: number }[]) => Object.fromEntries(tiles.map((tile) => [tile.id, tile.count]))
+  const counts = (tiles: { id: number; count: number }[]) =>
+    Object.fromEntries(tiles.map((tile) => [tile.id, tile.count]))
 
   it('counts every tile in full when nothing is picked', () => {
     const now = view({})
@@ -146,6 +154,15 @@ describe('practiceView', () => {
     expect(first.progress).toEqual({ correct: 1, incorrect: 1, total: 2 })
     // At 0 for now, but it has questions, so it can still be picked.
     expect(first.empty).toBe(false)
+  })
+
+  it('narrows the counts to starred questions, but not the bars', () => {
+    const now = view({ starred: true })
+    expect(counts(now.categories)).toEqual({ 1: 1, 2: 1, 3: 0 })
+    expect(counts(now.sources)).toEqual({ 1: 2, 2: 0 })
+    expect(now.available).toBe(2)
+    expect(now.statusCounts).toEqual({ all: 2, unanswered: 1, incorrect: 1, unsolved: 2 })
+    expect(now.sources[0]!.progress).toEqual({ correct: 1, incorrect: 2, total: 4 })
   })
 
   it('agrees with the questions a quiz would get', () => {
@@ -274,7 +291,12 @@ describe('the take-exam API', () => {
     return { exam: data.exam, ...practiceView(data, buildPool(data), selectionSchema.parse(selection)) }
   }
   const startQuiz = async (selection: SelectionInput, limit?: number) => {
-    const res = await send('POST', '/api/quizzes', { examId, feedback: 'after_each', ...selection, ...(limit ? { limit } : {}) })
+    const res = await send('POST', '/api/quizzes', {
+      examId,
+      feedback: 'after_each',
+      ...selection,
+      ...(limit ? { limit } : {}),
+    })
     if (res.status !== 201) return null
     const { id } = (await res.json()) as { id: number }
     return db.select().from(quizzes).where(eq(quizzes.id, id)).get()!
@@ -292,16 +314,29 @@ describe('the take-exam API', () => {
       {
         name: 'Alpha',
         chapters: [
-          { name: 'Alpha one', questions: [single('a1', 'Logic'), single('a2', 'Logic'), single('a3', 'Data Modeling')] },
+          {
+            name: 'Alpha one',
+            questions: [single('a1', 'Logic'), single('a2', 'Logic'), single('a3', 'Data Modeling')],
+          },
           { name: 'Alpha two', questions: [single('a4', 'Data Modeling'), single('a5', 'Logic')] },
         ],
       },
       {
         name: 'Beta',
-        chapters: [{ name: 'Beta one', questions: [single('b1', 'Logic'), single('b2', 'Data Modeling'), single('b3', 'Logic')] }],
+        chapters: [
+          {
+            name: 'Beta one',
+            questions: [single('b1', 'Logic'), single('b2', 'Data Modeling'), single('b3', 'Logic')],
+          },
+        ],
       },
     ].map((source) =>
-      commitImport(db, { formatVersion: 1, exam: EXAM, source: { name: source.name, origin: 'upload' }, chapters: source.chapters }),
+      commitImport(db, {
+        formatVersion: 1,
+        exam: EXAM,
+        source: { name: source.name, origin: 'upload' },
+        chapters: source.chapters,
+      }),
     )
     if (!imported.every((result) => result.ok)) throw new Error('import failed')
     examId = db.select().from(sources).get()!.examId
@@ -315,7 +350,9 @@ describe('the take-exam API', () => {
     expect(logic).toMatchObject({ count: 5, official: true, progress: { correct: 0, incorrect: 0, total: 5 } })
     // Official categories with no questions still show, as empty tiles.
     expect(options.categories.some((category) => category.count === 0)).toBe(true)
-    expect(options.sources.map((source) => [source.name, source.count, source.chapters.map((chapter) => chapter.count)])).toEqual([
+    expect(
+      options.sources.map((source) => [source.name, source.count, source.chapters.map((chapter) => chapter.count)]),
+    ).toEqual([
       ['Alpha', 5, [3, 2]],
       ['Beta', 3, [3]],
     ])
@@ -324,7 +361,12 @@ describe('the take-exam API', () => {
   it('sends metadata only, never question text, with your history in a word', async () => {
     const data = await load()
     expect(JSON.stringify(data)).not.toContain('Right a1')
-    expect(data.questions[0]).toEqual({ id: expect.any(Number), chapterId: expect.any(Number), categoryId: expect.any(Number), history: 'new' })
+    expect(data.questions[0]).toEqual({
+      id: expect.any(Number),
+      chapterId: expect.any(Number),
+      categoryId: expect.any(Number),
+      history: 'new',
+    })
   })
 
   it('is a 404 for an exam that does not exist', async () => {
@@ -366,7 +408,10 @@ describe('the take-exam API', () => {
     for (const [index, pick] of ['Right', 'Wrong'].entries()) {
       const now = (await (await send('GET', `/api/quizzes/${quiz!.id}`)).json()) as QuizState
       const option = now.current!.options.find((o) => o.bodyMd.startsWith(pick))!
-      await send('POST', `/api/quizzes/${quiz!.id}/answer`, { questionId: now.current!.id, selectedOptionIds: [option.id] })
+      await send('POST', `/api/quizzes/${quiz!.id}/answer`, {
+        questionId: now.current!.id,
+        selectedOptionIds: [option.id],
+      })
       if (index === 0) await send('POST', `/api/quizzes/${quiz!.id}/next`, { questionId: now.current!.id })
     }
 
@@ -377,7 +422,9 @@ describe('the take-exam API', () => {
 
     const unanswered = await practice({ status: 'unanswered' })
     expect(unanswered.available).toBe(6)
-    expect(unanswered.sources.find((source) => source.id === alpha)!.chapters.map((chapter) => chapter.count)).toEqual([3, 0])
+    expect(unanswered.sources.find((source) => source.id === alpha)!.chapters.map((chapter) => chapter.count)).toEqual([
+      3, 0,
+    ])
     expect((await practice({ status: 'incorrect' })).available).toBe(1)
     expect((await practice({ status: 'unsolved' })).available).toBe(7)
   })
@@ -388,12 +435,26 @@ describe('the take-exam API', () => {
       externalIds.map((externalId) => db.select().from(questions).where(eq(questions.externalId, externalId)).get()!.id)
 
     const res = await send('POST', '/api/quizzes', { examId, feedback: 'after_each', sort: 'source' })
-    const whole = db.select().from(quizzes).where(eq(quizzes.id, ((await res.json()) as { id: number }).id)).get()!
+    const whole = db
+      .select()
+      .from(quizzes)
+      .where(eq(quizzes.id, ((await res.json()) as { id: number }).id))
+      .get()!
     expect(whole.questionIds).toEqual(idsOf(order))
     expect(whole.config.sort).toBe('source')
 
-    const capped = await send('POST', '/api/quizzes', { examId, feedback: 'after_each', sort: 'source', limit: 2, chapterIds: [idOf.chapter('Alpha two'), idOf.chapter('Beta one')] })
-    const first = db.select().from(quizzes).where(eq(quizzes.id, ((await capped.json()) as { id: number }).id)).get()!
+    const capped = await send('POST', '/api/quizzes', {
+      examId,
+      feedback: 'after_each',
+      sort: 'source',
+      limit: 2,
+      chapterIds: [idOf.chapter('Alpha two'), idOf.chapter('Beta one')],
+    })
+    const first = db
+      .select()
+      .from(quizzes)
+      .where(eq(quizzes.id, ((await capped.json()) as { id: number }).id))
+      .get()!
     expect(first.questionIds).toEqual(idsOf(['a4', 'a5']))
   })
 
@@ -405,16 +466,87 @@ describe('the take-exam API', () => {
     expect((await startQuiz({}))!.questionIds).toHaveLength(7)
   })
 
+  describe('stars', () => {
+    const questionId = (externalId: string) =>
+      db.select().from(questions).where(eq(questions.externalId, externalId)).get()!.id
+    const star = (externalId: string) => send('PUT', `/api/questions/${questionId(externalId)}/star`)
+    const unstar = (externalId: string) => send('DELETE', `/api/questions/${questionId(externalId)}/star`)
+
+    it('stars and unstars, and either can be repeated', async () => {
+      expect((await star('a1')).status).toBe(200)
+      expect((await star('a1')).status).toBe(200)
+      expect(db.select().from(questionStars).all()).toEqual([
+        { userId: expect.any(Number), questionId: questionId('a1'), createdAt: expect.any(Date) },
+      ])
+      expect((await unstar('a1')).status).toBe(200)
+      expect((await unstar('a1')).status).toBe(200)
+      expect(db.select().from(questionStars).all()).toEqual([])
+    })
+
+    it('is a 404 for a question that does not exist or was deleted', async () => {
+      expect((await send('PUT', '/api/questions/999/star')).status).toBe(404)
+      expect((await send('DELETE', '/api/questions/999/star')).status).toBe(404)
+      db.update(questions).set({ deletedAt: new Date() }).where(eq(questions.externalId, 'a1')).run()
+      expect((await star('a1')).status).toBe(404)
+    })
+
+    it('belongs to whoever starred it', async () => {
+      await star('a1')
+      const other = db.insert(users).values({ name: 'Someone else', role: 'learner' }).returning().get()
+      db.insert(questionStars)
+        .values({ userId: other.id, questionId: questionId('b1') })
+        .run()
+
+      const data = await load()
+      expect(data.questions.filter((question) => question.starred).map((question) => question.id)).toEqual([
+        questionId('a1'),
+      ])
+    })
+
+    it('counts and asks only starred questions when Starred is on', async () => {
+      await star('a1')
+      await star('b2')
+      expect((await practice({ starred: true })).available).toBe(2)
+      const quiz = await startQuiz({ starred: true })
+      expect([...quiz!.questionIds].sort()).toEqual([questionId('a1'), questionId('b2')].sort())
+      expect(quiz!.config.selection).toMatchObject({ starred: true })
+      // Starred narrows the tiles too.
+      const beta = await startQuiz({ starred: true, sourceIds: [idOf.source('Beta')] })
+      expect(beta!.questionIds).toEqual([questionId('b2')])
+    })
+
+    it('refuses a starred quiz when nothing is starred', async () => {
+      expect(await startQuiz({ starred: true })).toBeNull()
+    })
+
+    it('shows in the quiz whether the question is starred', async () => {
+      const quiz = await startQuiz({})
+      const state = async () => (await (await send('GET', `/api/quizzes/${quiz!.id}`)).json()) as QuizState
+      const current = (await state()).current!
+      expect(current.starred).toBe(false)
+      await send('PUT', `/api/questions/${current.id}/star`)
+      expect((await state()).current!.starred).toBe(true)
+    })
+
+    it('still lets a trial import with starred questions be deleted', async () => {
+      await star('b1')
+      expect((await send('DELETE', `/api/sources/${idOf.source('Beta')}`)).status).toBe(200)
+      expect(db.select().from(questionStars).all()).toEqual([])
+    })
+  })
+
   it('names a quiz on the home page after what it was drawn from, leaving out the status', async () => {
     await startQuiz({ sourceIds: [idOf.source('Beta')], status: 'unanswered' })
-    const home = (await (await send('GET', '/api/home')).json()) as import('../shared/selection').HomeOverview
+    const home = (await (await send('GET', '/api/home')).json()) as import('../shared/home').HomeOverview
     expect(home.unfinished.map((quiz) => quiz.label)).toEqual(['Beta'])
   })
 
   it('shows each exam and source with progress on the home page', async () => {
-    const home = (await (await send('GET', '/api/home')).json()) as import('../shared/selection').HomeOverview
+    const home = (await (await send('GET', '/api/home')).json()) as import('../shared/home').HomeOverview
     const exam = home.subjects.flatMap((subject) => subject.exams).find((item) => item.id === examId)!
     expect(exam.progress).toEqual({ correct: 0, incorrect: 0, total: 8 })
+    // Its subject's name, which the home page chooses its icon from.
+    expect(exam.subject).toBe('OutSystems')
     expect(exam.sources.map((source) => [source.name, source.progress.total])).toEqual([
       ['Alpha', 5],
       ['Beta', 3],
@@ -422,7 +554,7 @@ describe('the take-exam API', () => {
   })
 
   it('moves passed and abandoned exams out of their subject into their own lists, and back', async () => {
-    type Home = import('../shared/selection').HomeOverview
+    type Home = import('../shared/home').HomeOverview
     const home = async () => (await (await send('GET', '/api/home')).json()) as Home
     const ids = (list: { id: number }[]) => list.map((exam) => exam.id)
     const active = async () => ids((await home()).subjects.flatMap((subject) => subject.exams))
@@ -431,7 +563,7 @@ describe('the take-exam API', () => {
     expect((await send('PUT', `/api/exams/${examId}/status`, { status: 'passed' })).status).toBe(200)
     let now = await home()
     expect(await active()).not.toContain(examId)
-    expect(now.passed).toEqual([expect.objectContaining({ id: examId, status: 'passed' })])
+    expect(now.passed).toEqual([expect.objectContaining({ id: examId, status: 'passed', subject: 'OutSystems' })])
     // The subject had only this exam, so it disappears from the subjects list.
     expect(now.subjects.map((subject) => subject.name)).not.toContain('OutSystems')
 

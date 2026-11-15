@@ -26,10 +26,15 @@ export const answerBody = z.strictObject({ questionId: id, selectedOptionIds: z.
 export const revealBody = z.strictObject({ questionId: id, durationMs })
 export const nextBody = z.strictObject({ questionId: id })
 
+/** One step harder or easier, from the buttons shown once a question is locked. */
+export const difficultyBody = z.strictObject({ change: z.union([z.literal(1), z.literal(-1)]) })
+
 export const flagBody = z.strictObject({ reason: z.string().trim().max(500).optional() })
 
 export type QuizQuestionOption = {
   id: number
+  /** The option's letter in the source, when its explanation refers to options by letter. */
+  label: string | null
   bodyMd: string
   /** These two stay on the server until the question is locked. */
   isCorrect?: boolean
@@ -43,6 +48,8 @@ export type QuizQuestion = {
   source: string
   options: QuizQuestionOption[]
   flag: { reason: string | null } | null
+  /** You've starred it. Unlike a flag, a star is yours alone. */
+  starred: boolean
   /** The answer is in doubt and nobody has settled it yet. */
   inDoubt: boolean
   /** The note can give the answer away, so it stays on the server until the question is locked. */
@@ -51,6 +58,8 @@ export type QuizQuestion = {
   category?: string
   /** Text about the whole question, once locked. */
   explanationMd?: string | null
+  /** Your difficulty for it after this answer, from 0 to 10, once locked. */
+  difficulty?: number | null
   outcome: { result: 'correct' | 'incorrect'; kind: 'answered' | 'revealed'; selectedOptionIds: number[] } | null
 }
 
@@ -84,10 +93,24 @@ export type ReviewEntry = {
   source: string
   category: string
   outcome: ReviewOutcome
-  options: { id: number; bodyMd: string; isCorrect: boolean; chosen: boolean; explanationMd: string | null }[]
+  options: {
+    id: number
+    label: string | null
+    bodyMd: string
+    isCorrect: boolean
+    chosen: boolean
+    explanationMd: string | null
+  }[]
   explanationMd: string | null
   reviewNote: string | null
 }
+
+/**
+ * How a question already passed went, for the progress bar. At-the-end feedback only ever says
+ * `answered` or `skipped`, because nothing may show whether you were right. A reveal is `incorrect`,
+ * as it counts as a miss.
+ */
+export type QuizMark = 'correct' | 'incorrect' | 'skipped' | 'answered'
 
 export type QuizState = {
   id: number
@@ -95,6 +118,8 @@ export type QuizState = {
   feedback: Feedback
   total: number
   position: number
+  /** One for each question passed, in the order asked, then one for the current question once it's locked. */
+  marks: QuizMark[]
   finished: boolean
   current: QuizQuestion | null
   results: QuizResults | null

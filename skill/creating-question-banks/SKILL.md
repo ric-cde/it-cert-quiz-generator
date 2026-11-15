@@ -33,7 +33,8 @@ If an upload contains both questions and prose, use mode A for the questions. Wr
 | `source.trust`, `source.reference` | How far the source can be trusted (`official`, `third_party` or `ai`), and where to find it: a URL, or a book with its edition. |
 | `chapters[].name` | A selectable group inside the source: a chapter, or a practice set. |
 | `bodyMd` | The question, rendered as Markdown. |
-| `options[]` | Shown in **random order, with no letters or numbers**. |
+| `options[]` | Shown in **random order**, with no letters or numbers unless they have a `label`. |
+| `label` on an option | The option's letter from the source, such as `A`, shown beside it. Labelled questions keep the source's order by default. If the user chooses to shuffle them, each label **moves with its option**, so an explanation that says "option C" still points at the right one. |
 | `explanationMd` on an option | Shown under that option once the question is answered. If blank, the app shows nothing there. |
 | `explanationMd` on a question | Shown below the options once answered: text about the question as a whole. |
 | `modelAnswerMd` | Free-form only. An AI judges the user's typed answer against this. |
@@ -74,7 +75,7 @@ Copy this checklist and work through it:
 
 - How many questions there are, per chapter or set. Write this count down, because step 6 checks against it.
 - Where the answers are (beside each question, in an appendix, in a separate file) and **how they're marked**. Bold, colour or a tick can vanish when text is extracted.
-- Whether answer text exists, and whether it covers each option or only the correct one.
+- Whether answer text exists, and its shape: text under each option, or **one passage per question**, such as an answer appendix. Note whether that passage refers to options by letter ("options A and F are correct"). If it does, the bank uses labels (see "Explanations").
 - Which questions depend on an image, and whether any type isn't supported.
 
 If you can't get reliable text, or the answers are missing, tell the user now rather than after copying.
@@ -89,14 +90,14 @@ If you can't get reliable text, or the answers are missing, tell the user now ra
 
 ### Rules for copying
 
-**Copy exactly.** Keep the source's wording and its format: a multiple choice question stays multiple choice, and a short-answer question stays free-form. Don't add options, reword, or improve anything. Remove only what isn't part of the question: numbering, option letters, page headers and footers. Repair damage from extraction, such as broken lines or hyphenation.
+**Copy exactly.** Keep the source's wording and its format: a multiple choice question stays multiple choice, and a short-answer question stays free-form. Don't add options, reword, or improve anything. Remove only what isn't part of the question: numbering, page headers and footers, and option letters, which go in `label` instead when the bank uses labels. Repair damage from extraction, such as broken lines or hyphenation.
 
 **Correct only obvious errors,** meaning clear typos where the intended text is beyond doubt, and list every correction in your report. Never change code, numbers or anything else the answer might depend on, because an error in code may be the point of the question.
 
 **These changes are needed,** because the app shuffles options and shows questions one at a time:
 
-- **Options that mention other options:** "Both A and B" becomes "Both `X` and `Y`", quoting them, with `lockOptionOrder: true`. Set the lock too for "All of the above" and "None of the above".
-- **Explanations that mention letters:** "B is wrong because..." moves onto that option, and "unlike A" names what A says. An explanation of the whole question stays on the question.
+- **Options that mention other options:** with labels, "Both A and B" stays as it is, because the letters are shown. Without labels, it becomes "Both `X` and `Y`", quoting them, with `lockOptionOrder: true`. Set the lock for "All of the above" and "None of the above" either way.
+- **Explanations that mention letters:** keep them, in the source's words, and label the options (see "Explanations"). Never replace a letter with the option's text, or split one passage across the options.
 - **Questions that rely on another question or a shared passage:** copy what's needed into each `bodyMd`, so each stands alone.
 
 **Never guess the answer:**
@@ -145,7 +146,10 @@ Read [references/writing-guide.md](references/writing-guide.md) first and follow
 
 Text from the source is ground truth. The app never lets AI-written text replace it, even on a later import. Explanations can sit on each option (`explanationMd` on the option), on the question as a whole (`explanationMd` on the question), or both. The app shows whatever exists and copes with none at all.
 
-1. **Text exists in the source (mode A):** copy all of it, marked `"explanationOrigin": "source"`. Text about one option goes on that option. Text about the whole question, such as "Answer: B, because...", goes on the question. Never drop or reword it.
+1. **Text exists in the source (mode A):** copy all of it, marked `"explanationOrigin": "source"`, **in the shape the source gives it**. Text the source prints under or for each option goes on that option. One passage for the whole question, such as an answer appendix's "4. A, D, F. A for-each loop supports arrays, making options A and F correct...", goes **whole** on the question's `explanationMd`. Never split it across options, drop it or reword it.
+   - **The passages refer to options by letter:** give every option of every lettered question in the source its `label`, exactly as the source letters it, and keep each passage's letters as they are. Keep the answer letters it starts with ("A, D, F."), and drop only the question number ("4."). Put no text on the options. Do this for the whole source, so the bank is consistent.
+   - **The passage is only the answer letters,** such as "B.": there's no explanation to copy, so leave it out.
+   - **No passage uses letters:** leave labels out.
 2. **The source has no text (mode A):** leave it blank. Write new text only if the user asks, and then mark it `"explanationOrigin": "generated"`.
 3. **New questions (modes B and C):** there's no source text, so write text for each correct option, marked `generated`, saying why it's right in 1-2 sentences.
 4. **A wrong option has no text:** leave it blank in every mode. The app can generate this later if the user wants it. Write it now only if the user asks.
@@ -176,6 +180,7 @@ node scripts/validate.mjs bank.json --expected 120
 - **Warnings** are probably mistakes. Look at each one. Fix it, or be ready to tell the user why it's fine.
 - **"Correct options with no explanation"** must be 0 in modes B and C. In mode A it's simply what the source didn't explain.
 - **"Not the exam's own categories or topics"** lists new names. Check each is really needed, and list them in your report.
+- **With labels,** two warnings mean an answer key matched to the wrong question or options, so treat them as serious: an explanation that starts with answer letters other than the options marked correct, and an explanation naming a letter no option has. Find the cause before going on.
 
 If `node` isn't available, run `python scripts/check_schema.py bank.json` instead, and tell the user that only the basic checks ran. The app runs the rest on upload.
 
@@ -188,7 +193,7 @@ Give the user the file to download, named after the source, such as `study-guide
 - Counts by type and by category. Point out a category with nothing in it.
 - Every `reviewNote`, with its reason
 - Category names that aren't the exam's own, and questions marked for another version or platform
-- How many explanations came from the source and how many you wrote
+- How many explanations came from the source and how many you wrote, and whether the options carry labels
 - Every correction you made to source text (mode A)
 - The sources you relied on, with links and the date you checked them, and any exam facts that differ from the exam details you were given (modes B and C)
 - Remaining warnings, and why you left them
@@ -199,6 +204,8 @@ Give the user the file to download, named after the source, such as `study-guide
 Don't stop part-way to ask the user to check a sample. Finish the file first. Then, alongside the file and the report, show **2-3 questions** in the chat as readable text, with their answers and explanations, so the user can judge the bank in a minute. Choose the ones most likely to reveal a misunderstanding: code, several correct answers, a separate answer key, or a `reviewNote`.
 
 End by saying the user can reply with any changes, and you'll regenerate the file. When they do, apply the change to the whole bank rather than only the sample questions, keep the same source name and `externalId` values, and validate again.
+
+**Redoing a bank the user has already imported:** keep the source name, every `externalId` and every option's `bodyMd` exactly as before, unless fixing a real error. The app matches on these when the file is imported again, which keeps the user's answer history. A file's explanations replace the source text already stored, and an explanation the file leaves out is removed, so include every explanation you mean to keep.
 
 ## Text and code
 

@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import type { ATTEMPT_KINDS, ATTEMPT_RESULTS } from '../shared/domain'
-import type { Tx } from './db'
-import { attempts, options, questions, questionStats } from './db/schema'
+import type { Db, Tx } from './db'
+import { attempts, difficultyAdjustments, options, questions, questionStats } from './db/schema'
 
 /**
  * Scoring and tracking. `attempts` is the source of truth, and `question_stats` is always worked
@@ -17,6 +17,51 @@ export const MAX_DIFFICULTY = 10
 export function nextDifficulty(current: number | null, wasCorrect: boolean) {
   if (current === null) return wasCorrect ? 3 : 5
   return wasCorrect ? Math.max(current - 1, 0) : Math.min(current + 1, MAX_DIFFICULTY)
+}
+
+const withinRange = (difficulty: number) => Math.min(Math.max(difficulty, 0), MAX_DIFFICULTY)
+
+const adjustmentOf = (userId: number, questionId: number) =>
+  and(eq(difficultyAdjustments.userId, userId), eq(difficultyAdjustments.questionId, questionId))
+
+function adjustedSteps(tx: Pick<Tx, 'select'>, userId: number, questionId: number) {
+  const row = tx
+    .select({ steps: difficultyAdjustments.steps })
+    .from(difficultyAdjustments)
+    .where(adjustmentOf(userId, questionId))
+    .get()
+  return row?.steps ?? 0
+}
+
+export const difficultyOf = (tx: Pick<Tx, 'select'>, userId: number, questionId: number) =>
+  tx
+    .select({ difficulty: questionStats.difficulty })
+    .from(questionStats)
+    .where(and(eq(questionStats.userId, userId), eq(questionStats.questionId, questionId)))
+    .get()?.difficulty ?? null
+
+/**
+ * Moves a question's difficulty one step by hand, staying within 0 to 10, and gives the new value.
+ * A question with no difficulty yet has nothing to move, so that gives null.
+ */
+export function adjustDifficulty(db: Db, userId: number, questionId: number, change: 1 | -1) {
+  return db.transaction((tx) => {
+    const current = difficultyOf(tx, userId, questionId)
+    if (current === null) return null
+    const next = withinRange(current + change)
+    if (next === current) return current
+
+    const steps = adjustedSteps(tx, userId, questionId) + change
+    tx.insert(difficultyAdjustments)
+      .values({ userId, questionId, steps })
+      .onConflictDoUpdate({ target: [difficultyAdjustments.userId, difficultyAdjustments.questionId], set: { steps } })
+      .run()
+    tx.update(questionStats)
+      .set({ difficulty: next })
+      .where(and(eq(questionStats.userId, userId), eq(questionStats.questionId, questionId)))
+      .run()
+    return next
+  })
 }
 
 /** All or nothing: the right options plus an extra one is wrong, and so is missing one. */
@@ -68,6 +113,9 @@ export function rebuildStats(tx: Tx, userId: number, questionId: number) {
     .orderBy(asc(attempts.id))
     .all()
   const stats = statsFromAttempts(history)
+  // Steps made by hand are added to what the attempts give, so they survive a rebuild.
+  if (stats.difficulty !== null)
+    stats.difficulty = withinRange(stats.difficulty + adjustedSteps(tx, userId, questionId))
   tx.insert(questionStats)
     .values({ userId, questionId, ...stats })
     .onConflictDoUpdate({ target: [questionStats.userId, questionStats.questionId], set: stats })

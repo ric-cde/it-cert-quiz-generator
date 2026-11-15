@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
-import type { ImportPlan, PlannedQuestion } from '../../shared/import'
-import { SAME_TEXT_WARNING } from '../../shared/question-bank-checks'
+import type { ImportPlan, PlannedQuestion } from '@shared/import'
+import { SAME_TEXT_WARNING } from '@shared/question-bank-checks'
 import { ImportPage } from './ImportPage'
 
 vi.mock('@/lib/api', () => ({
@@ -44,8 +44,18 @@ const planned = (overrides: Partial<PlannedQuestion> = {}): PlannedQuestion => (
 const plan = (overrides: Partial<ImportPlan> = {}): ImportPlan => ({
   ok: true,
   exam: 'An exam',
-  source: { name: 'A source', origin: 'upload', trust: null, reference: null, exists: false, icon: 'fox', iconChoices: ['fox', 'owl', 'panda'] },
-  categories: [{ name: 'Logic', count: 1, status: 'official', target: { id: 1, name: 'Logic', parent: null, official: true } }],
+  source: {
+    name: 'A source',
+    origin: 'upload',
+    trust: null,
+    reference: null,
+    exists: false,
+    icon: 'fox',
+    iconChoices: ['fox', 'owl', 'panda'],
+  },
+  categories: [
+    { name: 'Logic', count: 1, status: 'official', target: { id: 1, name: 'Logic', parent: null, official: true } },
+  ],
   examCategories: [
     { id: 1, name: 'Logic', parent: null, official: true },
     { id: 2, name: 'Forms', parent: 'Logic', official: true },
@@ -58,7 +68,17 @@ const plan = (overrides: Partial<ImportPlan> = {}): ImportPlan => ({
   ...overrides,
 })
 
-const result = { ok: true, sourceId: 1, added: 1, updated: 0, unchanged: 0, skippedDuplicates: 0, skippedDeleted: 0, notImportedByLimit: 0, toReview: 0 }
+const result = {
+  ok: true,
+  sourceId: 1,
+  added: 1,
+  updated: 0,
+  unchanged: 0,
+  skippedDuplicates: 0,
+  skippedDeleted: 0,
+  notImportedByLimit: 0,
+  toReview: 0,
+}
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -73,7 +93,10 @@ function renderPage() {
 
 async function chooseFile(contents = '{"formatVersion": 1}', name = 'bank.json') {
   const user = userEvent.setup()
-  await user.upload(screen.getByLabelText(/Choose a question bank file/), new File([contents], name, { type: 'application/json' }))
+  await user.upload(
+    screen.getByLabelText(/Choose a question bank file/),
+    new File([contents], name, { type: 'application/json' }),
+  )
   return user
 }
 
@@ -185,7 +208,9 @@ describe('ImportPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Import 1 question' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('1 question added.')
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox' } })
+    expect(postCommit).toHaveBeenCalledWith({
+      json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox' },
+    })
     expect(screen.getByRole('link', { name: /data inspector/ })).toHaveAttribute('href', '/dev/data/questions')
   })
 
@@ -214,8 +239,18 @@ describe('ImportPage', () => {
     const withNames = () =>
       plan({
         categories: [
-          { name: 'Logic', count: 3, status: 'official', target: { id: 1, name: 'Logic', parent: null, official: true } },
-          { name: 'forms', count: 2, status: 'new', suggestion: { id: 2, name: 'Forms', parent: 'Logic', official: true } },
+          {
+            name: 'Logic',
+            count: 3,
+            status: 'official',
+            target: { id: 1, name: 'Logic', parent: null, official: true },
+          },
+          {
+            name: 'forms',
+            count: 2,
+            status: 'new',
+            suggestion: { id: 2, name: 'Forms', parent: 'Logic', official: true },
+          },
           { name: 'Odd one', count: 1, status: 'new' },
         ],
       })
@@ -228,10 +263,15 @@ describe('ImportPage', () => {
       expect(await screen.findByText(/2 names aren't one of this exam's/)).toBeInTheDocument()
       expect(screen.getByText('Official category')).toBeInTheDocument()
       expect(screen.getAllByText('New to this exam')).toHaveLength(2)
+      // Only the exam's own carry the official badge, the one on the take-exam tiles.
+      expect(screen.getByText('Official category').querySelector('svg.lucide-badge-check')).not.toBeNull()
+      for (const tag of screen.getAllByText('New to this exam')) expect(tag.querySelector('svg')).toBeNull()
       expect(screen.queryByRole('combobox', { name: /"Logic"/ })).not.toBeInTheDocument()
       // A near match is suggested, and anything else is kept as it is.
       expect(screen.getByRole('combobox', { name: /"forms"/ })).toHaveDisplayValue('Logic › Forms')
-      expect(screen.getByRole('combobox', { name: /"Odd one"/ })).toHaveDisplayValue('Keep as a new unofficial category')
+      expect(screen.getByRole('combobox', { name: /"Odd one"/ })).toHaveDisplayValue(
+        'Keep as a new unofficial category',
+      )
     })
 
     it('sends the choices with the import', async () => {
@@ -263,7 +303,15 @@ describe('ImportPage', () => {
     postPreview.mockImplementation(async () =>
       json(
         plan({
-          source: { name: 'A source', origin: 'upload', trust: 'official', reference: 'https://example.com/exam', exists: false, icon: 'fox', iconChoices: ['fox'] },
+          source: {
+            name: 'A source',
+            origin: 'upload',
+            trust: 'official',
+            reference: 'https://example.com/exam',
+            exists: false,
+            icon: 'fox',
+            iconChoices: ['fox'],
+          },
         }),
       ),
     )
@@ -271,7 +319,10 @@ describe('ImportPage', () => {
     await chooseFile()
 
     expect(await screen.findByText('Official')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'https://example.com/exam' })).toHaveAttribute('href', 'https://example.com/exam')
+    expect(screen.getByRole('link', { name: 'https://example.com/exam' })).toHaveAttribute(
+      'href',
+      'https://example.com/exam',
+    )
   })
 
   describe('source icon', () => {
@@ -279,7 +330,9 @@ describe('ImportPage', () => {
       renderPage()
       const user = await chooseFile()
 
-      expect(await screen.findByRole('button', { name: 'Source icon: Fox. Choose a different one' })).toBeInTheDocument()
+      expect(
+        await screen.findByRole('button', { name: 'Source icon: Fox. Choose a different one' }),
+      ).toBeInTheDocument()
       expect(screen.getByText(/Its icon is fox/)).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Import 1 question' }))
       expect(postCommit).toHaveBeenCalledWith({ json: expect.objectContaining({ icon: 'fox' }) })
@@ -302,7 +355,9 @@ describe('ImportPage', () => {
 
     it('sends the chosen icon with a trial import too', async () => {
       postPreview.mockImplementation(async () =>
-        json(plan({ counts: { new: 11, updated: 0, unchanged: 0, deleted: 0, duplicates: 0, toReview: 0, total: 11 } })),
+        json(
+          plan({ counts: { new: 11, updated: 0, unchanged: 0, deleted: 0, duplicates: 0, toReview: 0, total: 11 } }),
+        ),
       )
       renderPage()
       const user = await chooseFile()
@@ -315,8 +370,34 @@ describe('ImportPage', () => {
     it('shows each source in the list with its icon', async () => {
       getSources.mockImplementation(async () =>
         json([
-          { id: 1, exam: 'An exam', name: 'Alpha', origin: 'upload', trust: null, reference: null, icon: 'fox', chapters: 1, questions: 2, flagged: 0, toReview: 0, attempts: 0 },
-          { id: 2, exam: 'An exam', name: 'Beta', origin: 'upload', trust: null, reference: null, icon: null, chapters: 1, questions: 2, flagged: 0, toReview: 0, attempts: 0 },
+          {
+            id: 1,
+            exam: 'An exam',
+            name: 'Alpha',
+            origin: 'upload',
+            trust: null,
+            reference: null,
+            icon: 'fox',
+            chapters: 1,
+            questions: 2,
+            flagged: 0,
+            toReview: 0,
+            attempts: 0,
+          },
+          {
+            id: 2,
+            exam: 'An exam',
+            name: 'Beta',
+            origin: 'upload',
+            trust: null,
+            reference: null,
+            icon: null,
+            chapters: 1,
+            questions: 2,
+            flagged: 0,
+            toReview: 0,
+            attempts: 0,
+          },
         ]),
       )
       renderPage()
@@ -341,7 +422,9 @@ describe('ImportPage', () => {
     await user.click(screen.getByRole('switch', { name: 'Also import 1 duplicate' }))
     await user.click(screen.getByRole('button', { name: 'Import 3 questions' }))
 
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: true, categoryChoices: {}, icon: 'fox' } })
+    expect(postCommit).toHaveBeenCalledWith({
+      json: { bank: { formatVersion: 1 }, includeDuplicates: true, categoryChoices: {}, icon: 'fox' },
+    })
   })
 
   it('offers a trial import only for a file bigger than the trial', async () => {
@@ -352,7 +435,9 @@ describe('ImportPage', () => {
     const user = await chooseFile()
 
     await user.click(await screen.findByRole('button', { name: 'Try the first 10 only' }))
-    expect(postCommit).toHaveBeenCalledWith({ json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox', limit: 10 } })
+    expect(postCommit).toHaveBeenCalledWith({
+      json: { bank: { formatVersion: 1 }, includeDuplicates: false, categoryChoices: {}, icon: 'fox', limit: 10 },
+    })
     unmount()
 
     renderPage()
@@ -391,7 +476,19 @@ describe('ImportPage', () => {
   })
 
   describe('sources', () => {
-    const source = { id: 7, exam: 'An exam', name: 'Trial', origin: 'upload', trust: null, reference: null, chapters: 2, questions: 30, flagged: 1, toReview: 2, attempts: 0 }
+    const source = {
+      id: 7,
+      exam: 'An exam',
+      name: 'Trial',
+      origin: 'upload',
+      trust: null,
+      reference: null,
+      chapters: 2,
+      questions: 30,
+      flagged: 1,
+      toReview: 2,
+      attempts: 0,
+    }
 
     it('says when there are none', async () => {
       renderPage()
@@ -401,7 +498,10 @@ describe('ImportPage', () => {
     it('links to the questions to review in a source', async () => {
       getSources.mockImplementation(async () => json([source]))
       renderPage()
-      expect(await screen.findByRole('link', { name: '2 questions to review' })).toHaveAttribute('href', '/review?source=7')
+      expect(await screen.findByRole('link', { name: '2 questions to review' })).toHaveAttribute(
+        'href',
+        '/review?source=7',
+      )
     })
 
     it('deletes only after a second press', async () => {

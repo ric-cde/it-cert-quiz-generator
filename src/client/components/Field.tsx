@@ -6,8 +6,8 @@ export function inputClass({ invalid = false, mono = false }: { invalid?: boolea
   return clsx(
     'min-h-9 rounded-md border bg-surface px-3 py-1.5 text-base text-ink transition-colors duration-100',
     'placeholder:text-ink-soft',
-    'focus:outline-2 focus:outline-offset-0 focus:outline-accent focus:border-accent',
-    'focus-ring:outline-2 focus-ring:outline-offset-0 focus-ring:outline-accent focus-ring:border-accent',
+    'focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent',
+    'focus-ring:border-accent focus-ring:outline-2 focus-ring:outline-offset-0 focus-ring:outline-accent',
     'disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-soft',
     invalid ? 'border-wrong' : 'border-line-strong',
     mono && 'font-mono text-sm',

@@ -5,10 +5,11 @@ import { AnswerOption } from '@/components/AnswerOption'
 import { Button } from '@/components/Button'
 import { Markdown } from '@/components/Markdown'
 import { QuestionExplanation } from '@/components/QuestionExplanation'
-import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 import { readJson } from '@/lib/http'
-import type { QuestionToReview, ReviewDecision } from '../../shared/review'
+import type { QuestionToReview, ReviewDecision } from '@shared/review'
+import { ErrorText, PageLoading } from '@/components/Notices'
+import { Card } from '@/components/Card'
 
 function ReviewCard({ question }: { question: QuestionToReview }) {
   const queryClient = useQueryClient()
@@ -38,7 +39,7 @@ function ReviewCard({ question }: { question: QuestionToReview }) {
   }
 
   return (
-    <article aria-label={question.externalId ?? `Question ${question.id}`} className="rounded-lg border border-line bg-surface p-5">
+    <Card as="article" aria-label={question.externalId ?? `Question ${question.id}`} padding="lg">
       <p className="mb-3 text-xs break-words text-ink-soft">
         {question.source}, {question.chapter}
         {question.externalId && ` · ${question.externalId}`}
@@ -71,6 +72,7 @@ function ReviewCard({ question }: { question: QuestionToReview }) {
                     ? 'correct-missed'
                     : 'neutral'
               }
+              label={option.label}
               onToggle={() => toggle(option.id)}
               explanation={!editing && option.explanationMd ? <Markdown>{option.explanationMd}</Markdown> : undefined}
             >
@@ -82,11 +84,7 @@ function ReviewCard({ question }: { question: QuestionToReview }) {
 
       {!editing && question.explanationMd && <QuestionExplanation markdown={question.explanationMd} />}
 
-      {decide.isError && (
-        <p role="alert" className="mt-3 text-sm font-semibold text-wrong-ink">
-          Couldn't save that: {decide.error.message}
-        </p>
-      )}
+      {decide.isError && <ErrorText className="mt-3">Couldn't save that: {decide.error.message}</ErrorText>}
 
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
         {editing ? (
@@ -114,13 +112,18 @@ function ReviewCard({ question }: { question: QuestionToReview }) {
                 Change the answer
               </Button>
             )}
-            <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate({ action: 'take-out' })}>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={decide.isPending}
+              onClick={() => decide.mutate({ action: 'take-out' })}
+            >
               Take out of quizzes
             </Button>
           </>
         )}
       </div>
-    </article>
+    </Card>
   )
 }
 
@@ -146,16 +149,8 @@ export function ReviewPage() {
         </p>
       )}
 
-      {questions.isPending && (
-        <p className="mt-6">
-          <Spinner />
-        </p>
-      )}
-      {questions.isError && (
-        <p role="alert" className="mt-6 text-sm font-semibold text-wrong-ink">
-          Couldn't load these: {questions.error.message}
-        </p>
-      )}
+      {questions.isPending && <PageLoading className="mt-6" />}
+      {questions.isError && <ErrorText className="mt-6">Couldn't load these: {questions.error.message}</ErrorText>}
       {questions.data?.length === 0 && (
         <p className="mt-6">
           Nothing left to review. <Link to="/import">Back to import</Link>

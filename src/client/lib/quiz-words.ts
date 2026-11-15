@@ -1,5 +1,5 @@
-import type { Feedback, QuizSort } from '../../shared/domain'
-import type { Status } from '../../shared/selection'
+import type { Feedback, QuizSort } from '@shared/domain'
+import type { Status } from '@shared/selection'
 
 /** The words the screens use for quiz options, kept in one place so they always match. */
 
@@ -16,6 +16,9 @@ export const STATUS_OPTIONS: readonly { value: Status; label: string }[] = [
   { value: 'incorrect', label: 'Incorrect' },
   { value: 'unsolved', label: 'Unsolved' },
 ]
+
+/** "1 question", "3 questions". Give the plural when it isn't just an added s, such as "quizzes". */
+export const plural = (count: number, word: string, many = `${word}s`) => `${count} ${count === 1 ? word : many}`
 
 const twoDigits = (value: number) => String(value).padStart(2, '0')
 

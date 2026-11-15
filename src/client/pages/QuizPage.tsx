@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { AnswerOption, answerState } from '@/components/AnswerOption'
 import { Button } from '@/components/Button'
+import { DifficultyControl, MAX_DIFFICULTY, MIN_DIFFICULTY } from '@/components/DifficultyControl'
 import { FlagButton, FlagReason } from '@/components/FlagControl'
 import { Kbd } from '@/components/Kbd'
 import { Markdown } from '@/components/Markdown'
@@ -11,12 +12,14 @@ import { NoExplanation, QuestionExplanation } from '@/components/QuestionExplana
 import { QuizActions, rowButton } from '@/components/QuizActions'
 import { QuizProgress } from '@/components/QuizProgress'
 import { ReviewNotice } from '@/components/ReviewNotice'
-import { Spinner } from '@/components/Spinner'
+import { StarButton } from '@/components/StarButton'
+import { ErrorText, PageError, PageLoading } from '@/components/Notices'
 import { Verdict } from '@/components/Verdict'
 import { api } from '@/lib/api'
+import { useFeature } from '@/lib/features'
 import { HttpError, readJson } from '@/lib/http'
-import { isForShortcuts } from '@/lib/shortcuts'
-import type { QuizQuestion, QuizState } from '../../shared/quiz'
+import { useShortcuts } from '@/lib/shortcuts'
+import type { QuizQuestion, QuizState } from '@shared/quiz'
 import { QuizResults } from './QuizResults'
 
 const quizKey = (id: string) => ['quiz', id]
@@ -65,6 +68,45 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
     onSuccess: () => queryClient.invalidateQueries({ queryKey: quizKey(quizId) }),
   })
 
+  const canStar = useFeature('starredQuestions')
+  const starring = useMutation({
+    mutationFn: async (starred: boolean) => {
+      const star = api.api.questions[':id'].star
+      const starParam = { param: { id: String(question.id) } }
+      await readJson(await (starred ? star.$put(starParam) : star.$delete(starParam)))
+      return starred
+    },
+    // Only the star changes, so there's no need to load the question again.
+    onSuccess: (starred) =>
+      queryClient.setQueryData<QuizState>(quizKey(quizId), (state) =>
+        state?.current?.id === question.id ? { ...state, current: { ...state.current, starred } } : state,
+      ),
+  })
+  // The star fills as soon as it's pressed, and goes back if saving fails.
+  const starred = starring.isPending ? starring.variables : question.starred
+
+  // Experimental: your difficulty for a locked question, with a step up or down.
+  const canAdjust = useFeature('difficultyButtons')
+  const difficulty = canAdjust && !atEnd && locked ? (question.difficulty ?? null) : null
+  const adjusting = useMutation({
+    mutationFn: async (change: 1 | -1) =>
+      readJson(
+        await api.api.questions[':id'].difficulty.$post({ param: { id: String(question.id) }, json: { change } }),
+      ),
+    // Only the difficulty changes, so there's no need to load the question again.
+    onSuccess: (result) =>
+      queryClient.setQueryData<QuizState>(quizKey(quizId), (state) =>
+        state?.current?.id === question.id
+          ? { ...state, current: { ...state.current, difficulty: result.difficulty } }
+          : state,
+      ),
+  })
+  function adjust(change: 1 | -1) {
+    if (difficulty === null || adjusting.isPending) return
+    const next = difficulty + change
+    if (next >= MIN_DIFFICULTY && next <= MAX_DIFFICULTY) adjusting.mutate(change)
+  }
+
   const elapsed = () => Math.round(performance.now() - shownAt.current)
   const busy = act.isPending
 
@@ -84,11 +126,15 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
   }
   function reveal() {
     act.mutate(async () =>
-      readJson(await api.api.quizzes[':id'].reveal.$post({ param, json: { questionId: question.id, durationMs: elapsed() } })),
+      readJson(
+        await api.api.quizzes[':id'].reveal.$post({ param, json: { questionId: question.id, durationMs: elapsed() } }),
+      ),
     )
   }
   function moveOn() {
-    act.mutate(async () => readJson(await api.api.quizzes[':id'].next.$post({ param, json: { questionId: question.id } })))
+    act.mutate(async () =>
+      readJson(await api.api.quizzes[':id'].next.$post({ param, json: { questionId: question.id } })),
+    )
   }
 
   /** What Next does at the end of a question: an at-the-end answer is saved as it moves on. */
@@ -97,12 +143,8 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
     else moveOn()
   }
 
-  // Read fresh on every key press, so the handler never sees an old selection.
-  const onKey = useRef<(event: KeyboardEvent) => void>(() => {})
-  onKey.current = (event) => {
-    if (!isForShortcuts(event) || busy) return
-    const key = event.key.toLowerCase()
-
+  useShortcuts((event, key) => {
+    if (busy) return
     if (key >= '1' && key <= '9' && key.length === 1 && !locked) {
       const option = question.options[Number(key) - 1]
       if (option) {
@@ -118,13 +160,11 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
     } else if (key === 'r' && !atEnd && !locked) {
       event.preventDefault()
       reveal()
+    } else if ((key === 'arrowup' || key === 'arrowdown') && difficulty !== null) {
+      event.preventDefault()
+      adjust(key === 'arrowup' ? 1 : -1)
     }
-  }
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => onKey.current(event)
-    window.addEventListener('keydown', listener)
-    return () => window.removeEventListener('keydown', listener)
-  }, [])
+  })
 
   return (
     <QuestionCard revealed={revealed}>
@@ -133,7 +173,12 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
           Question {quiz.position + 1} of {quiz.total} · {question.source}
           {question.category && ` · ${question.category}`}
         </p>
-        <QuizProgress position={quiz.position + (locked ? 1 : 0)} total={quiz.total} current={quiz.position} />
+        <QuizProgress
+          position={quiz.position + (locked ? 1 : 0)}
+          total={quiz.total}
+          current={quiz.position}
+          marks={quiz.marks}
+        />
       </div>
 
       {question.inDoubt && (
@@ -153,6 +198,7 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
               kind={multi ? 'multi' : 'single'}
               name={`question-${question.id}`}
               state={answerState({ chosen: picked, isCorrect: option.isCorrect ?? false, locked })}
+              label={option.label}
               shortcut={index < 9 ? index + 1 : undefined}
               disabled={busy}
               onToggle={() => toggle(option.id)}
@@ -167,20 +213,35 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
       {locked && question.explanationMd && <QuestionExplanation markdown={question.explanationMd} />}
       {locked && outcome.result === 'incorrect' && !hasText && <NoExplanation />}
 
+      {starring.isError && <ErrorText className="mt-4">Couldn't save that star: {starring.error.message}</ErrorText>}
+      {adjusting.isError && (
+        <ErrorText className="mt-4">Couldn't change the difficulty: {adjusting.error.message}</ErrorText>
+      )}
       {act.isError && !(act.error instanceof HttpError && act.error.status === 409) && (
-        <p role="alert" className="mt-4 text-sm font-semibold text-wrong-ink">
-          Couldn't save that, so please try again: {act.error.message}
-        </p>
+        <ErrorText className="mt-4">Couldn't save that, so please try again: {act.error.message}</ErrorText>
       )}
 
       <QuizActions
         tools={
-          <FlagButton
-            flagged={flagged}
-            busy={flagging.isPending}
-            onFlag={() => flagging.mutate({ flag: true })}
-            onUnflag={() => flagging.mutate({ flag: false })}
-          />
+          <>
+            {difficulty !== null && (
+              <DifficultyControl difficulty={difficulty} busy={adjusting.isPending} onChange={adjust} />
+            )}
+            {canStar && (
+              <StarButton
+                on={starred}
+                label="Star this question"
+                title={starred ? 'Starred. Press to take the star off.' : 'Star this question, to find it again later'}
+                onChange={(next) => starring.mutate(next)}
+              />
+            )}
+            <FlagButton
+              flagged={flagged}
+              busy={flagging.isPending}
+              onFlag={() => flagging.mutate({ flag: true })}
+              onUnflag={() => flagging.mutate({ flag: false })}
+            />
+          </>
         }
         end={
           atEnd || locked ? (
@@ -189,18 +250,32 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
             </Button>
           ) : (
             flagged && (
-              <Button variant="ghost" className={rowButton} disabled={busy} title="Move on without answering. No attempt is logged." onClick={moveOn}>
+              <Button
+                variant="ghost"
+                className={rowButton}
+                disabled={busy}
+                title="Move on without answering. No attempt is logged."
+                onClick={moveOn}
+              >
                 Skip
               </Button>
             )
           )
         }
       >
-        {atEnd && chosen.length === 0 && <p className="text-sm text-ink-soft">Nothing selected, so Next skips this one.</p>}
+        {atEnd && chosen.length === 0 && (
+          <p className="text-sm text-ink-soft">Nothing selected, so Next skips this one.</p>
+        )}
         {!atEnd && locked && <Verdict kind={revealed ? 'revealed' : outcome.result} />}
         {!atEnd && !locked && (
           <>
-            <Button variant="primary" className={rowButton} disabled={chosen.length === 0} loading={busy} onClick={submit}>
+            <Button
+              variant="primary"
+              className={rowButton}
+              disabled={chosen.length === 0}
+              loading={busy}
+              onClick={submit}
+            >
               Submit {chosen.length > 0 && <Kbd tone="on-accent">Enter</Kbd>}
             </Button>
             <Button className={rowButton} aria-label="Reveal answer" disabled={busy} onClick={reveal}>
@@ -268,24 +343,13 @@ export function QuizPage() {
     refetchOnWindowFocus: false,
   })
 
-  if (quiz.isPending) {
-    return (
-      <p className="mx-auto max-w-2xl">
-        <Spinner />
-      </p>
-    )
-  }
+  if (quiz.isPending) return <PageLoading className="mx-auto max-w-2xl" />
   if (quiz.isError) {
     const missing = quiz.error instanceof HttpError && quiz.error.status < 500
     return (
-      <div role="alert" className="mx-auto max-w-2xl">
-        <p className="font-semibold text-wrong-ink">
-          {missing ? "There's no such quiz." : `Couldn't load this quiz: ${quiz.error.message}`}
-        </p>
-        <p className="mt-2 text-sm">
-          <Link to="/">Back to home</Link>
-        </p>
-      </div>
+      <PageError className="mx-auto max-w-2xl">
+        {missing ? "There's no such quiz." : `Couldn't load this quiz: ${quiz.error.message}`}
+      </PageError>
     )
   }
 

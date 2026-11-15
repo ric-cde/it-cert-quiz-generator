@@ -29,7 +29,7 @@ describe('GET /api/dev/tables', () => {
 
     const res = await api.request('/api/dev/tables')
     const list = (await res.json()) as TableSummary[]
-    expect(list).toHaveLength(17)
+    expect(list).toHaveLength(allTables.length)
     expect(list.find((t) => t.name === 'users')).toEqual({ name: 'users', rowCount: 1 })
     expect(list.find((t) => t.name === 'categories')?.rowCount).toBe(38)
     expect(list.find((t) => t.name === 'questions')?.rowCount).toBe(0)

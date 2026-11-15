@@ -1,0 +1,1 @@
+ALTER TABLE `options` ADD `label` text;

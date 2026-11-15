@@ -61,7 +61,8 @@ describe('quizzes', () => {
   }
   const state = async (id: number) => (await (await send('GET', `/api/quizzes/${id}`)).json()) as QuizState
   const act = (id: number, action: string, body?: unknown) => send('POST', `/api/quizzes/${id}/${action}`, body)
-  const acted = async (id: number, action: string, body?: unknown) => (await (await act(id, action, body)).json()) as QuizState
+  const acted = async (id: number, action: string, body?: unknown) =>
+    (await (await act(id, action, body)).json()) as QuizState
 
   const optionNamed = (now: QuizState, prefix: string) => now.current!.options.find((o) => o.bodyMd.startsWith(prefix))!
   const answer = (now: QuizState, ...prefixes: string[]) => ({
@@ -69,7 +70,8 @@ describe('quizzes', () => {
     selectedOptionIds: prefixes.map((prefix) => optionNamed(now, prefix).id),
   })
   const stored = () => db.select().from(attempts).all()
-  const statsFor = (questionId: number) => db.select().from(questionStats).where(eq(questionStats.questionId, questionId)).get()
+  const statsFor = (questionId: number) =>
+    db.select().from(questionStats).where(eq(questionStats.questionId, questionId)).get()
 
   beforeEach(() => {
     db = openDb(':memory:')
@@ -84,7 +86,14 @@ describe('quizzes', () => {
     it('includes each question once, in some order', async () => {
       const id = await start()
       const row = db.select().from(quizzes).where(eq(quizzes.id, id)).get()!
-      expect([...row.questionIds].sort()).toEqual(db.select().from(questions).all().map((q) => q.id).sort())
+      expect([...row.questionIds].sort()).toEqual(
+        db
+          .select()
+          .from(questions)
+          .all()
+          .map((q) => q.id)
+          .sort(),
+      )
       expect(row).toMatchObject({
         mode: 'study',
         position: 0,
@@ -104,7 +113,13 @@ describe('quizzes', () => {
         bank(
           [
             single(4, { reviewNote: 'Looks wrong' }),
-            { externalId: 'free', type: 'free_form', category: 'Logic', bodyMd: 'Explain?', modelAnswerMd: 'Like this.' },
+            {
+              externalId: 'free',
+              type: 'free_form',
+              category: 'Logic',
+              bodyMd: 'Explain?',
+              modelAnswerMd: 'Like this.',
+            },
           ],
           'Quiz source',
         ),
@@ -112,8 +127,16 @@ describe('quizzes', () => {
       db.update(questions).set({ flaggedAt: new Date() }).where(eq(questions.externalId, 'q1')).run()
       db.update(questions).set({ deletedAt: new Date() }).where(eq(questions.externalId, 'q2')).run()
 
-      const row = db.select().from(quizzes).where(eq(quizzes.id, await start())).get()!
-      const kept = db.select().from(questions).all().filter((q) => row.questionIds.includes(q.id))
+      const row = db
+        .select()
+        .from(quizzes)
+        .where(eq(quizzes.id, await start()))
+        .get()!
+      const kept = db
+        .select()
+        .from(questions)
+        .all()
+        .filter((q) => row.questionIds.includes(q.id))
       expect(kept.map((q) => q.externalId).sort()).toEqual(['q3', 'q4'])
     })
 
@@ -133,7 +156,15 @@ describe('quizzes', () => {
       const id = await start('at_end')
       const home = (await (await send('GET', '/api/home')).json()) as { unfinished: unknown[] }
       expect(home.unfinished).toEqual([
-        { id, exam: EXAM, label: 'Quiz source', feedback: 'at_end', position: 0, total: 3, startedAt: expect.stringMatching(/^\d{4}-/) },
+        {
+          id,
+          exam: EXAM,
+          label: 'Quiz source',
+          feedback: 'at_end',
+          position: 0,
+          total: 3,
+          startedAt: expect.stringMatching(/^\d{4}-/),
+        },
       ])
 
       await act(id, 'finish')
@@ -182,6 +213,55 @@ describe('quizzes', () => {
     })
   })
 
+  describe('option order setting', () => {
+    const texts = (prefix: string) => Array.from({ length: 8 }, (_, i) => `${prefix} ${i}`)
+    const lettered = (n: number, prefix: string) => ({
+      ...single(n),
+      options: texts(prefix).map((bodyMd, i) => ({ label: 'ABCDEFGH'[i], bodyMd, isCorrect: i === 0 })),
+    })
+    const plain = (n: number, prefix: string) => ({
+      ...single(n),
+      options: texts(prefix).map((bodyMd, i) => ({ bodyMd, isCorrect: i === 0 })),
+    })
+    const orderIn = async (name: string, question: object) => {
+      const imported = commitImport(db, bank([question], name))
+      if (!imported.ok) throw new Error('import failed')
+      sourceId = imported.sourceId
+      return (await state(await start())).current!.options.map((o) => o.bodyMd)
+    }
+    const setOrder = (optionOrder: string) => send('PATCH', '/api/settings', { optionOrder })
+
+    it('keeps lettered options in the source order by default, and shuffles the rest', async () => {
+      expect(await orderIn('Lettered', lettered(20, 'Lettered'))).toEqual(texts('Lettered'))
+      expect(await orderIn('Plain', plain(21, 'Plain'))).not.toEqual(texts('Plain'))
+    })
+
+    it('can keep every question in the source order', async () => {
+      await setOrder('source')
+      expect(await orderIn('Plain', plain(21, 'Plain'))).toEqual(texts('Plain'))
+    })
+
+    it('can shuffle lettered options too, but never a question whose order is locked', async () => {
+      await setOrder('shuffle')
+      const order = await orderIn('Lettered', lettered(20, 'Lettered'))
+      expect(order).not.toEqual(texts('Lettered'))
+      expect([...order].sort()).toEqual(texts('Lettered'))
+      expect(await orderIn('Locked', { ...plain(22, 'Locked'), lockOptionOrder: true })).toEqual(texts('Locked'))
+    })
+
+    it('keeps the order a quiz started with, in the quiz and in Review answers, when the setting changes', async () => {
+      await setOrder('shuffle')
+      const imported = commitImport(db, bank([lettered(20, 'Lettered')], 'Lettered'))
+      if (!imported.ok) throw new Error('import failed')
+      sourceId = imported.sourceId
+      const id = await start()
+      const shuffledOrder = (await state(id)).current!.options.map((o) => o.bodyMd)
+
+      await setOrder('source')
+      expect((await state(id)).current!.options.map((o) => o.bodyMd)).toEqual(shuffledOrder)
+    })
+  })
+
   describe('feedback after each question', () => {
     it('marks a right answer, locks it and shows the text', async () => {
       const id = await start()
@@ -194,12 +274,23 @@ describe('quizzes', () => {
         kind: 'answered',
         selectedOptionIds: [optionNamed(before, 'Right').id],
       })
-      expect(optionNamed(after, 'Right')).toMatchObject({ isCorrect: true, explanationMd: expect.stringContaining('Why right') })
-      expect(optionNamed(after, 'Wrong')).toMatchObject({ isCorrect: false, explanationMd: expect.stringContaining('Why wrong') })
+      expect(optionNamed(after, 'Right')).toMatchObject({
+        isCorrect: true,
+        explanationMd: expect.stringContaining('Why right'),
+      })
+      expect(optionNamed(after, 'Wrong')).toMatchObject({
+        isCorrect: false,
+        explanationMd: expect.stringContaining('Why wrong'),
+      })
       expect(after.current!.category).toBe('Logic')
 
       expect(stored()[0]).toMatchObject({ result: 'correct', kind: 'answered', durationMs: 1234, quizId: id })
-      expect(statsFor(before.current!.id)).toMatchObject({ difficulty: 3, attemptCount: 1, latestCorrect: true, streak: 1 })
+      expect(statsFor(before.current!.id)).toMatchObject({
+        difficulty: 3,
+        attemptCount: 1,
+        latestCorrect: true,
+        streak: 1,
+      })
     })
 
     it('shows the explanation of the whole question once locked, and a topic with its category', async () => {
@@ -301,6 +392,33 @@ describe('quizzes', () => {
       expect(reopened.current!.outcome!.result).toBe('incorrect')
     })
 
+    it('marks each question so far for the progress bar, with a reveal as a miss', async () => {
+      const id = await start()
+      let now = await state(id)
+      expect(now.marks).toEqual([])
+
+      // The current question is marked as soon as it's locked.
+      now = await acted(id, 'answer', answer(now, 'Right'))
+      expect(now.marks).toEqual(['correct'])
+      now = await acted(id, 'next', { questionId: now.current!.id })
+      expect(now.marks).toEqual(['correct'])
+
+      now = await acted(id, 'answer', answer(now, 'Wrong'))
+      now = await acted(id, 'next', { questionId: now.current!.id })
+      expect(now.marks).toEqual(['correct', 'incorrect'])
+
+      now = await acted(id, 'reveal', { questionId: now.current!.id })
+      expect(now.marks).toEqual(['correct', 'incorrect', 'incorrect'])
+    })
+
+    it('marks a flagged question left unanswered as skipped', async () => {
+      const id = await start()
+      const before = await state(id)
+      await send('PUT', `/api/questions/${before.current!.id}/flag`, {})
+      const after = await acted(id, 'next', { questionId: before.current!.id })
+      expect(after.marks).toEqual(['skipped'])
+    })
+
     it('finishes after the last question, with results', async () => {
       const id = await start()
       const prefixes = ['Right', 'Wrong', null]
@@ -319,6 +437,42 @@ describe('quizzes', () => {
     })
   })
 
+  describe('difficulty buttons', () => {
+    const step = (questionId: number, body: unknown) => send('POST', `/api/questions/${questionId}/difficulty`, body)
+
+    it('has no difficulty to show or move before an attempt', async () => {
+      const before = await state(await start())
+      expect(before.current).not.toHaveProperty('difficulty')
+      expect((await step(before.current!.id, { change: 1 })).status).toBe(409)
+    })
+
+    it('shows the difficulty on a locked question, and moves it a step', async () => {
+      const id = await start()
+      const before = await state(id)
+      const after = await acted(id, 'answer', answer(before, 'Wrong'))
+      expect(after.current!.difficulty).toBe(5)
+
+      const up = await step(before.current!.id, { change: 1 })
+      expect(up.status).toBe(200)
+      expect(await up.json()).toEqual({ difficulty: 6 })
+      expect((await state(id)).current!.difficulty).toBe(6)
+
+      expect(await (await step(before.current!.id, { change: -1 })).json()).toEqual({ difficulty: 5 })
+      expect(statsFor(before.current!.id)).toMatchObject({ difficulty: 5 })
+    })
+
+    it.each([{ change: 2 }, { change: 0 }, { change: '1' }, {}, { change: 1, extra: true }])(
+      'refuses %j',
+      async (body) => {
+        const id = await start()
+        const before = await state(id)
+        await acted(id, 'answer', answer(before, 'Right'))
+        expect((await step(before.current!.id, body)).status).toBe(400)
+        expect(statsFor(before.current!.id)).toMatchObject({ difficulty: 3 })
+      },
+    )
+  })
+
   describe('feedback at the end', () => {
     it('records and moves on, showing nothing about the answer', async () => {
       const id = await start('at_end')
@@ -330,6 +484,17 @@ describe('quizzes', () => {
       expect(JSON.stringify(after)).not.toContain('isCorrect')
       expect(after.current!.outcome).toBeNull()
       expect(stored()[0]).toMatchObject({ result: 'incorrect', kind: 'answered' })
+    })
+
+    it('marks questions only as answered or skipped, never right or wrong', async () => {
+      const id = await start('at_end')
+      let now = await state(id)
+      now = await acted(id, 'answer', answer(now, 'Right'))
+      now = await acted(id, 'next', { questionId: now.current!.id })
+      expect(now.marks).toEqual(['answered', 'skipped'])
+
+      now = await acted(id, 'answer', answer(now, 'Wrong'))
+      expect(now.marks).toEqual(['answered', 'skipped', 'answered'])
     })
 
     it('has no reveal', async () => {
@@ -406,11 +571,19 @@ describe('quizzes', () => {
     it('with an option from another question, or the same option twice', async () => {
       const id = await start()
       const now = await state(id)
-      const foreign = db.select().from(options).all().find((o) => o.questionId !== now.current!.id)!
-      expect((await act(id, 'answer', { questionId: now.current!.id, selectedOptionIds: [foreign.id] })).status).toBe(400)
+      const foreign = db
+        .select()
+        .from(options)
+        .all()
+        .find((o) => o.questionId !== now.current!.id)!
+      expect((await act(id, 'answer', { questionId: now.current!.id, selectedOptionIds: [foreign.id] })).status).toBe(
+        400,
+      )
 
       const twice = optionNamed(now, 'Right').id
-      expect((await act(id, 'answer', { questionId: now.current!.id, selectedOptionIds: [twice, twice] })).status).toBe(400)
+      expect((await act(id, 'answer', { questionId: now.current!.id, selectedOptionIds: [twice, twice] })).status).toBe(
+        400,
+      )
       expect(stored()).toEqual([])
     })
 
@@ -498,7 +671,11 @@ describe('quizzes', () => {
       const now = await state(first)
       await flag(now.current!.id)
 
-      const second = db.select().from(quizzes).where(eq(quizzes.id, await start())).get()!
+      const second = db
+        .select()
+        .from(quizzes)
+        .where(eq(quizzes.id, await start()))
+        .get()!
       expect(second.questionIds).not.toContain(now.current!.id)
       expect(second.questionIds).toHaveLength(2)
     })
@@ -581,7 +758,11 @@ describe('quizzes', () => {
 
       const res = await send('POST', `/api/quizzes/${id}/retry`)
       expect(res.status).toBe(201)
-      const retry = db.select().from(quizzes).where(eq(quizzes.id, ((await res.json()) as { id: number }).id)).get()!
+      const retry = db
+        .select()
+        .from(quizzes)
+        .where(eq(quizzes.id, ((await res.json()) as { id: number }).id))
+        .get()!
       expect([...retry.questionIds].sort()).toEqual(quiz.questionIds.slice(1, 3).sort())
       expect(retry.config).toMatchObject({ feedback: 'at_end', retryOf: id })
       const home = (await (await send('GET', '/api/home')).json()) as { unfinished: { label: string }[] }

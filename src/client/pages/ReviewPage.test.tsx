@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReviewNotice } from '@/components/ReviewNotice'
 import { api } from '@/lib/api'
-import type { QuestionToReview } from '../../shared/review'
+import type { QuestionToReview } from '@shared/review'
 import { ReviewPage } from './ReviewPage'
 
 vi.mock('@/lib/api', () => ({
@@ -29,8 +29,8 @@ const question = (overrides: Partial<QuestionToReview> = {}): QuestionToReview =
   modelAnswerMd: null,
   reviewNote: 'The source says A, but it prints B.',
   options: [
-    { id: 10, bodyMd: 'Option A', isCorrect: true, explanationMd: null, explanationOrigin: null },
-    { id: 11, bodyMd: 'Option B', isCorrect: false, explanationMd: null, explanationOrigin: null },
+    { id: 10, label: null, bodyMd: 'Option A', isCorrect: true, explanationMd: null, explanationOrigin: null },
+    { id: 11, label: null, bodyMd: 'Option B', isCorrect: false, explanationMd: null, explanationOrigin: null },
   ],
   ...overrides,
 })
@@ -103,7 +103,10 @@ describe('ReviewPage', () => {
     expect(stateOf('Option B')).toHaveAttribute('data-state', 'selected')
 
     await user.click(screen.getByRole('button', { name: 'Save this answer' }))
-    expect(postReview).toHaveBeenCalledWith({ param: { id: '5' }, json: { action: 'change-answer', correctOptionIds: [11] } })
+    expect(postReview).toHaveBeenCalledWith({
+      param: { id: '5' },
+      json: { action: 'change-answer', correctOptionIds: [11] },
+    })
   })
 
   it('changes a multi-answer question: options toggle, and at least one is needed', async () => {
@@ -118,7 +121,10 @@ describe('ReviewPage', () => {
     await user.click(screen.getByText('Option B'))
     await user.click(screen.getByText('Option A'))
     await user.click(screen.getByRole('button', { name: 'Save this answer' }))
-    expect(postReview).toHaveBeenCalledWith({ param: { id: '5' }, json: { action: 'change-answer', correctOptionIds: [11, 10] } })
+    expect(postReview).toHaveBeenCalledWith({
+      param: { id: '5' },
+      json: { action: 'change-answer', correctOptionIds: [11, 10] },
+    })
   })
 
   it('can back out of changing the answer', async () => {

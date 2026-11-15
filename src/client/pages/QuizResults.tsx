@@ -1,15 +1,18 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ChevronDown, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Button, buttonClass } from '@/components/Button'
-import { Segmented } from '@/components/Filters'
+import { Segmented } from '@/components/Segmented'
 import { CategoryBreakdown, ReviewEntryCard } from '@/components/QuizReview'
 import { QuizScore } from '@/components/QuizScore'
 import { Spinner } from '@/components/Spinner'
 import { api } from '@/lib/api'
 import { readJson } from '@/lib/http'
-import type { QuizState } from '../../shared/quiz'
+import type { QuizState } from '@shared/quiz'
+import { ErrorText } from '@/components/Notices'
+import { Card } from '@/components/Card'
+import { Disclosure } from '@/components/Disclosure'
 
 const SHOW = [
   { value: 'all', label: 'All' },
@@ -23,7 +26,7 @@ const SHOW = [
 function ReviewAnswers({ quizId, startOpen }: { quizId: number; startOpen: boolean }) {
   const [open, setOpen] = useState(startOpen)
   const [show, setShow] = useState<(typeof SHOW)[number]['value']>('all')
-  const panelId = useId()
+  const headingId = useId()
 
   const review = useQuery({
     queryKey: ['quiz-review', quizId],
@@ -33,39 +36,30 @@ function ReviewAnswers({ quizId, startOpen }: { quizId: number; startOpen: boole
   const entries = (review.data ?? []).filter((entry) => show === 'all' || entry.outcome !== 'correct')
 
   return (
-    <section aria-labelledby={`${panelId}-heading`}>
-      <h2 id={`${panelId}-heading`} className="text-base">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((value) => !value)}
-          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-line bg-surface px-4 py-3 text-left shadow-card hover:border-accent"
-        >
-          Review answers
-          <ChevronDown className={`size-4 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-        </button>
-      </h2>
-      {open && (
-        <div id={panelId} className="mt-3 animate-rise space-y-3">
-          {review.isPending && <Spinner />}
-          {review.isError && (
-            <p role="alert" className="text-sm font-semibold text-wrong-ink">
-              Couldn't load your answers: {review.error.message}
-            </p>
-          )}
-          {review.data && review.data.length === 0 && <p className="text-sm text-ink-soft">No questions were answered.</p>}
-          {review.data && review.data.length > 0 && (
-            <>
-              <Segmented label="Show" value={show} options={SHOW} onChange={setShow} />
-              {entries.length === 0 && <p className="text-sm text-ink-soft">Nothing missed. Well done.</p>}
-              {entries.map((entry) => (
-                <ReviewEntryCard key={entry.questionId} entry={entry} />
-              ))}
-            </>
-          )}
-        </div>
-      )}
+    <section aria-labelledby={headingId}>
+      <Disclosure
+        summary="Review answers"
+        tone="card"
+        heading={{ level: 'h2', id: headingId }}
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
+        contentClassName="space-y-3"
+      >
+        {review.isPending && <Spinner />}
+        {review.isError && <ErrorText>Couldn't load your answers: {review.error.message}</ErrorText>}
+        {review.data && review.data.length === 0 && (
+          <p className="text-sm text-ink-soft">No questions were answered.</p>
+        )}
+        {review.data && review.data.length > 0 && (
+          <>
+            <Segmented label="Show" value={show} options={SHOW} onChange={setShow} />
+            {entries.length === 0 && <p className="text-sm text-ink-soft">Nothing missed. Well done.</p>}
+            {entries.map((entry) => (
+              <ReviewEntryCard key={entry.questionId} entry={entry} />
+            ))}
+          </>
+        )}
+      </Disclosure>
     </section>
   )
 }
@@ -84,7 +78,7 @@ export function QuizResults({ quiz }: { quiz: QuizState }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div className="rounded-lg border border-line bg-surface p-5 shadow-card sm:p-6">
+      <Card padding="lg">
         <h1 ref={heading} tabIndex={-1} className="text-xl outline-none">
           Quiz finished
         </h1>
@@ -112,17 +106,13 @@ export function QuizResults({ quiz }: { quiz: QuizState }) {
             Back to home
           </Link>
         </div>
-        {retry.isError && (
-          <p role="alert" className="mt-3 text-sm font-semibold text-wrong-ink">
-            Couldn't start the retry: {retry.error.message}
-          </p>
-        )}
-      </div>
+        {retry.isError && <ErrorText className="mt-3">Couldn't start the retry: {retry.error.message}</ErrorText>}
+      </Card>
 
       {summary && summary.byCategory.length > 0 && (
-        <div className="rounded-lg border border-line bg-surface p-5 shadow-card sm:p-6">
+        <Card padding="lg">
           <CategoryBreakdown categories={summary.byCategory} />
-        </div>
+        </Card>
       )}
 
       <ReviewAnswers quizId={quiz.id} startOpen={quiz.feedback === 'at_end'} />

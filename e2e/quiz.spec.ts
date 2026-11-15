@@ -18,7 +18,12 @@ function bank(name: string) {
             category: 'Logic',
             bodyMd: `${name}: what does this print?\n\n\`\`\`java\nSystem.out.println(1 + 2);\n\`\`\``,
             options: [
-              { bodyMd: `${name} three`, isCorrect: true, explanationMd: 'Because 1 + 2 is 3.', explanationOrigin: 'generated' },
+              {
+                bodyMd: `${name} three`,
+                isCorrect: true,
+                explanationMd: 'Because 1 + 2 is 3.',
+                explanationOrigin: 'generated',
+              },
               { bodyMd: `${name} twelve`, isCorrect: false },
             ],
             lockOptionOrder: true,
@@ -168,15 +173,21 @@ test('ending early keeps what was answered', async ({ page }) => {
 test.describe('the quiz screen', () => {
   for (const [state, prepare] of [
     ['while answering', async () => {}],
-    ['once marked', async (page: Page) => {
-      await page.keyboard.press('1')
-      await page.keyboard.press('Enter')
-      await expect(page.getByText('Your answer')).toBeVisible()
-    }],
-    ['after a reveal', async (page: Page) => {
-      await page.getByRole('button', { name: /Reveal answer/ }).click()
-      await expect(page.getByText('Revealed', { exact: true })).toBeVisible()
-    }],
+    [
+      'once marked',
+      async (page: Page) => {
+        await page.keyboard.press('1')
+        await page.keyboard.press('Enter')
+        await expect(page.getByText('Your answer')).toBeVisible()
+      },
+    ],
+    [
+      'after a reveal',
+      async (page: Page) => {
+        await page.getByRole('button', { name: /Reveal answer/ }).click()
+        await expect(page.getByText('Revealed', { exact: true })).toBeVisible()
+      },
+    ],
   ] as const) {
     test(`has no accessibility violations ${state}, and doesn't scroll sideways on a phone`, async ({ page }) => {
       const name = `Screen ${state}`
@@ -187,7 +198,9 @@ test.describe('the quiz screen', () => {
 
       const { violations } = await new AxeBuilder({ page }).analyze()
       expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([])
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
       expect(overflow).toBeLessThanOrEqual(0)
     })
   }

@@ -1,0 +1,6 @@
+# Kept out of code searches (ripgrep reads this file), so a search doesn't return pages of
+# generated or vendored text. The files are still tracked and can be opened directly.
+package-lock.json
+drizzle/meta/
+src/client/icons/source-icon-art.generated.ts
+docs/archive/

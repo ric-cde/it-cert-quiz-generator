@@ -4,7 +4,14 @@ import { commitImport } from './bank-import'
 import { type Db, openDb } from './db'
 import { attempts, options, questions, questionStats, quizzes, users } from './db/schema'
 import { resolveReview } from './review'
-import { isExactMatch, nextDifficulty, rebuildStats, recordAttempt, statsFromAttempts } from './tracking'
+import {
+  adjustDifficulty,
+  isExactMatch,
+  nextDifficulty,
+  rebuildStats,
+  recordAttempt,
+  statsFromAttempts,
+} from './tracking'
 
 describe('nextDifficulty', () => {
   it.each([
@@ -39,7 +46,12 @@ describe('statsFromAttempts', () => {
   const at = (minute: number) => new Date(2026, 10, 4, 10, minute)
 
   it('starts empty', () => {
-    expect(statsFromAttempts([])).toMatchObject({ difficulty: null, attemptCount: 0, latestCorrect: false, lastSeenAt: null })
+    expect(statsFromAttempts([])).toMatchObject({
+      difficulty: null,
+      attemptCount: 0,
+      latestCorrect: false,
+      lastSeenAt: null,
+    })
   })
 
   it('follows a history of right and wrong', () => {
@@ -110,7 +122,13 @@ describe('with stored attempts', () => {
   function record(selected: string[], result: 'correct' | 'incorrect', kind: 'answered' | 'revealed' = 'answered') {
     const quiz = db
       .insert(quizzes)
-      .values({ userId, examId: 1, mode: 'study', config: { feedback: 'after_each', sourceId: 1 }, questionIds: [question().id] })
+      .values({
+        userId,
+        examId: 1,
+        mode: 'study',
+        config: { feedback: 'after_each', sourceId: 1 },
+        questionIds: [question().id],
+      })
       .returning()
       .get()
     quizId = quiz.id
@@ -151,6 +169,52 @@ describe('with stored attempts', () => {
     expect(stats()).toEqual(before)
   })
 
+  describe('a difficulty moved by hand', () => {
+    const adjust = (change: 1 | -1) => adjustDifficulty(db, userId, question().id, change)
+
+    it('has nothing to move before the first attempt', () => {
+      expect(adjust(1)).toBeNull()
+      expect(db.select().from(questionStats).all()).toEqual([])
+    })
+
+    it('moves a step at a time, and gives the new value', () => {
+      record(['B'], 'incorrect')
+      expect(adjust(1)).toBe(6)
+      expect(adjust(1)).toBe(7)
+      expect(adjust(-1)).toBe(6)
+      expect(stats()).toMatchObject({ difficulty: 6, attemptCount: 1 })
+    })
+
+    it('stays within 0 to 10, and stores only the steps it took', () => {
+      record(['A'], 'correct')
+      expect([adjust(-1), adjust(-1), adjust(-1), adjust(-1), adjust(-1)]).toEqual([2, 1, 0, 0, 0])
+      // Three steps were taken, not five, so one step back up gives 1, and a rebuild agrees.
+      expect(adjust(1)).toBe(1)
+      db.transaction((tx) => rebuildStats(tx, userId, question().id))
+      expect(stats().difficulty).toBe(1)
+
+      for (let step = 0; step < 12; step++) adjust(1)
+      expect(stats().difficulty).toBe(10)
+    })
+
+    it('carries on from the moved value with the next attempt', () => {
+      record(['B'], 'incorrect')
+      adjust(1)
+      adjust(1)
+      record(['A'], 'correct')
+      expect(stats().difficulty).toBe(6)
+    })
+
+    it('survives a rebuild from the attempts', () => {
+      record(['B'], 'incorrect')
+      adjust(-1)
+      adjust(-1)
+      db.delete(questionStats).run()
+      db.transaction((tx) => rebuildStats(tx, userId, question().id))
+      expect(stats().difficulty).toBe(3)
+    })
+  })
+
   describe('when the answer key changes', () => {
     it('re-marks past answers from a review, and recalculates', () => {
       record(['B'], 'incorrect')
@@ -160,7 +224,13 @@ describe('with stored attempts', () => {
       resolveReview(db, question().id, { action: 'change-answer', correctOptionIds: [optionId('B')] })
 
       expect(allAttempts().map((a) => a.result)).toEqual(['correct', 'incorrect'])
-      expect(stats()).toMatchObject({ latestCorrect: false, everCorrect: true, correctCount: 1, difficulty: 4, streak: 0 })
+      expect(stats()).toMatchObject({
+        latestCorrect: false,
+        everCorrect: true,
+        correctCount: 1,
+        difficulty: 4,
+        streak: 0,
+      })
     })
 
     it('keeps a reveal as a miss, whatever the new answer is', () => {
@@ -182,7 +252,12 @@ describe('with stored attempts', () => {
     it('leaves attempts and stats alone when a re-import changes only the wording', () => {
       record(['B'], 'incorrect')
       const before = stats()
-      commitImport(db, { ...bank('A'), chapters: [{ name: 'One', questions: [{ ...bank('A').chapters[0]!.questions[0]!, bodyMd: 'Which one, then?' }] }] })
+      commitImport(db, {
+        ...bank('A'),
+        chapters: [
+          { name: 'One', questions: [{ ...bank('A').chapters[0]!.questions[0]!, bodyMd: 'Which one, then?' }] },
+        ],
+      })
 
       expect(question().bodyMd).toBe('Which one, then?')
       expect(stats()).toEqual(before)

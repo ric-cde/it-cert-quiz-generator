@@ -25,6 +25,8 @@ export type PracticeQuestion = {
   history: QuestionHistory
   /** Free-form questions count towards progress but can't be asked until Stage 11. */
   freeForm?: true
+  /** You've starred it. */
+  starred?: true
 }
 
 export type PracticeData = {
@@ -51,6 +53,7 @@ export type PoolQuestion = {
   attempted: boolean
   latestCorrect: boolean
   everCorrect: boolean
+  starred: boolean
 }
 
 export type Pool = {
@@ -74,6 +77,7 @@ export function buildPool(data: Pick<PracticeData, 'categories' | 'chapters' | '
       attempted: question.history !== 'new',
       latestCorrect: question.history === 'correct',
       everCorrect: question.history === 'correct' || question.history === 'lapsed',
+      starred: question.starred === true,
     })),
   }
 }
@@ -99,6 +103,10 @@ export function matchesStatus(question: PoolQuestion, status: Status) {
 }
 
 type Test = (question: PoolQuestion) => boolean
+
+/** The filters that aren't tiles: it can be asked, has the status picked and, if asked for, a star. */
+const passesFilters = (question: PoolQuestion, selection: Pick<Selection, 'status' | 'starred'>) =>
+  question.askable && matchesStatus(question, selection.status) && (!selection.starred || question.starred)
 
 /** The category picks. Picking a category includes its topics. */
 function categoryTest(selection: Selection): Test {
@@ -127,7 +135,7 @@ export function selectQuestions(pool: Pool, selection: Selection): number[] {
   const inCategories = categoryTest(selection)
   const inTree = treeTest(pool, selection)
   return pool.questions
-    .filter((q) => q.askable && matchesStatus(q, selection.status) && inCategories(q) && inTree(q))
+    .filter((q) => passesFilters(q, selection) && inCategories(q) && inTree(q))
     .sort((a, b) => a.sourceId - b.sourceId || a.chapterId - b.chapterId || a.id - b.id)
     .map((question) => question.id)
 }
@@ -148,7 +156,7 @@ export function progressOf(list: readonly PoolQuestion[]): ProgressCounts {
 export type TileView = {
   id: number
   name: string
-  /** Questions this tile would add now: narrowed by the other type's picks and the status filter. */
+  /** Questions this tile would add now: narrowed by the other type's picks, the status filter and Starred. */
   count: number
   /** Its questions under the other type's picks, whatever their status. */
   progress: ProgressCounts
@@ -181,7 +189,7 @@ export function practiceView(data: PracticeData, pool: Pool, selection: Selectio
     return {
       id,
       name,
-      count: narrowed.filter((q) => q.askable && matchesStatus(q, selection.status)).length,
+      count: narrowed.filter((q) => passesFilters(q, selection)).length,
       progress: progressOf(narrowed),
       empty: !all.some((q) => q.askable),
     }
@@ -240,7 +248,9 @@ export function quizMix(pool: Pool, ids: readonly number[], limit: number | unde
   const mix: QuizMix = { correct: 0, incorrect: 0, unanswered: 0 }
   MIX_PARTS.forEach((part, index) => (mix[part] = Math.floor(shares[index]!)))
   let left = limit - MIX_PARTS.reduce((sum, part) => sum + mix[part], 0)
-  const byRemainder = MIX_PARTS.map((part, index) => ({ part, rest: shares[index]! - mix[part] })).sort((a, b) => b.rest - a.rest)
+  const byRemainder = MIX_PARTS.map((part, index) => ({ part, rest: shares[index]! - mix[part] })).sort(
+    (a, b) => b.rest - a.rest,
+  )
   for (const { part } of byRemainder) {
     if (left <= 0) break
     mix[part] += 1

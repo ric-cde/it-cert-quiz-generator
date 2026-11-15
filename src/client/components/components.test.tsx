@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnswerOption, answerState } from './AnswerOption'
 import { Button } from './Button'
 import { CodeBlock } from './CodeBlock'
-import { LiveCount, MaxQuestionsPicker, nextMaxQuestions, parseMaxQuestions, Segmented, Switch } from './Filters'
+import { LiveCount, SelectionStrip } from './LiveCount'
+import { MaxQuestionsPicker, nextMaxQuestions, parseMaxQuestions } from './MaxQuestions'
+import { Segmented } from './Segmented'
+import { Switch } from './Switch'
 import { Markdown } from './Markdown'
-import { ProgressBar, progressSegments } from './ProgressBar'
+import { ProgressBar, progressSegments, ProgressSquares } from './ProgressBar'
 import { QuestionCard } from './QuestionCard'
 import { RandomTile, SourceTile, Tile } from './Tile'
 
@@ -81,7 +84,7 @@ describe('AnswerOption', () => {
 
   it.each([
     ['correct-chosen', 'Marked correct'],
-    ['correct-missed', 'Correct answer'],
+    ['correct-missed', 'Missed answer'],
     ['wrong-chosen', 'Marked incorrect'],
   ] as const)('says what %s means in words, not only colour', (state, text) => {
     render(
@@ -114,7 +117,7 @@ describe('AnswerOption', () => {
         Option A
       </AnswerOption>,
     )
-    expect(screen.getByText('Correct answer')).toBeInTheDocument()
+    expect(screen.getByText('Missed answer')).toBeInTheDocument()
     expect(container.querySelector('svg rect[stroke-dasharray]')).not.toBeNull()
 
     rerender(
@@ -122,7 +125,7 @@ describe('AnswerOption', () => {
         Option A
       </AnswerOption>,
     )
-    expect(screen.queryByText('Correct answer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Missed answer')).not.toBeInTheDocument()
     expect(container.querySelector('svg rect[stroke-dasharray]')).toBeNull()
   })
 
@@ -140,6 +143,22 @@ describe('AnswerOption', () => {
       </AnswerOption>,
     )
     expect(screen.queryByText('Why this is wrong')).not.toBeInTheDocument()
+  })
+
+  it("shows the option's letter from the source, as part of its accessible name, and nothing when it has none", () => {
+    const { rerender } = render(
+      <AnswerOption kind="single" name="q" state="idle" label="C">
+        `Map`
+      </AnswerOption>,
+    )
+    expect(screen.getByRole('radio', { name: /^C\.\s*`Map`/ })).toBeInTheDocument()
+
+    rerender(
+      <AnswerOption kind="single" name="q" state="idle" label={null}>
+        `Map`
+      </AnswerOption>,
+    )
+    expect(screen.getByRole('radio', { name: /^`Map`/ })).toBeInTheDocument()
   })
 
   it('hides the shortcut once locked', () => {
@@ -232,6 +251,86 @@ describe('ProgressBar', () => {
     expect(screen.getByRole('progressbar', { name: 'Concurrency' })).toHaveAttribute('aria-valuenow', '30')
     expect(screen.getByText('30%')).toBeInTheDocument()
   })
+
+  it('stripes the part the status picks, with one accent outline and no extra height', () => {
+    const { container } = render(<ProgressBar label="P" correct={3} incorrect={1} total={10} emphasis="incorrect" />)
+    const picked = container.querySelector('[data-picked]')!
+    expect(picked).toHaveAttribute('data-segment', 'incorrect')
+    expect(picked.className).toContain('repeating-linear-gradient')
+    expect(picked.className).toContain('var(--color-accent)')
+    expect(picked).toHaveClass('h-full')
+  })
+})
+
+describe('ProgressSquares', () => {
+  const squares = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-segment]')].map((square) => square.getAttribute('data-segment'))
+
+  it('shows a square for each question, green then yellow then grey', () => {
+    const { container } = render(<ProgressSquares label="Concurrency" correct={2} incorrect={1} total={5} />)
+    expect(squares(container)).toEqual(['correct', 'correct', 'incorrect', 'unanswered', 'unanswered'])
+    expect(screen.getByRole('progressbar', { name: 'Concurrency' })).toHaveAttribute('aria-valuenow', '40')
+    expect(container.querySelector('[data-segment="incorrect"]')).toHaveAttribute('title', '1 incorrect')
+  })
+
+  it('stripes the squares the status picks, with a white outline', () => {
+    const { container } = render(
+      <ProgressSquares label="P" correct={2} incorrect={1} total={5} emphasis="unanswered" />,
+    )
+    const picked = [...container.querySelectorAll('[data-picked]')]
+    expect(picked.map((square) => square.getAttribute('data-segment'))).toEqual(['unanswered', 'unanswered'])
+    expect(picked[0]!.className).toContain('repeating-linear-gradient')
+    expect(picked[0]!.className).toContain('var(--color-surface)')
+  })
+
+  it('shrinks the squares in steps as the questions multiply, and stops at 500', () => {
+    const size = (total: number) => {
+      const { container, unmount } = render(<ProgressSquares label="P" correct={0} incorrect={0} total={total} />)
+      const result = [container.querySelector('[data-size]')!.getAttribute('data-size'), squares(container).length]
+      unmount()
+      return result
+    }
+    expect(size(5)).toEqual(['lg', 5])
+    expect(size(60)).toEqual(['lg', 60])
+    expect(size(61)).toEqual(['md', 61])
+    expect(size(349)).toEqual(['sm', 349])
+    expect(size(2000)).toEqual(['sm', 500])
+  })
+})
+
+describe('SelectionStrip', () => {
+  const strip = (count: number) => {
+    const { container, unmount } = render(<SelectionStrip count={count} />)
+    const size = container.querySelector('[data-size]')!.getAttribute('data-size')
+    const square = container.querySelector('[data-question]')!.className
+    unmount()
+    return { size, square }
+  }
+
+  it('keeps one size of square from 5 to 50 questions, then shrinks in steps', () => {
+    expect(strip(5).size).toBe('xl')
+    expect(strip(50).size).toBe('xl')
+    expect(strip(51).size).toBe('lg')
+    expect(strip(200).size).toBe('md')
+    expect(strip(349).size).toBe('sm')
+    expect(strip(500).size).toBe('xs')
+  })
+
+  it('always draws squares, which never stretch', () => {
+    for (const count of [5, 349]) {
+      const { square } = strip(count)
+      expect(square).toMatch(/\bsize-/)
+      expect(square).toContain('flex-none')
+    }
+  })
+
+  it('keeps each colour its share past the limit', () => {
+    const { container } = render(
+      <SelectionStrip count={1000} mix={{ correct: 250, incorrect: 250, unanswered: 500 }} />,
+    )
+    expect(container.querySelectorAll('[data-question]')).toHaveLength(500)
+    expect(container.querySelectorAll('[data-question="correct"]')).toHaveLength(125)
+  })
 })
 
 describe('Tile', () => {
@@ -246,7 +345,7 @@ describe('Tile', () => {
     expect(onClick).toHaveBeenCalledOnce()
   })
 
-  it('stays clickable while diminished, because clicking turns Random off', async () => {
+  it('stays clickable while diminished, because clicking turns All sources off', async () => {
     const onClick = vi.fn()
     render(<Tile title="OOP" count={4} progress={progress} diminished onClick={onClick} />)
     await userEvent.click(screen.getByRole('button', { name: /OOP/ }))
@@ -262,7 +361,9 @@ describe('Tile', () => {
     const { container } = render(
       <Tile title="OOP" count={9} emphasis={emphasis} progress={{ correct: 5, incorrect: 3, total: 10 }} />,
     )
-    const picked = [...container.querySelectorAll('[data-picked]')].map((segment) => segment.getAttribute('data-segment'))
+    const picked = [...container.querySelectorAll('[data-picked]')].map((segment) =>
+      segment.getAttribute('data-segment'),
+    )
     expect(picked).toEqual(standing)
   })
 
@@ -291,7 +392,27 @@ describe('Tile', () => {
 
   it('uses the singular for one question', () => {
     render(<Tile title="OOP" count={1} progress={{ correct: 0, incorrect: 0, total: 1 }} />)
-    expect(screen.getByText('1 question')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^OOP 1 question\b/ })).toBeInTheDocument()
+  })
+
+  it('shows its count as a bubble, with no % figure beside the bar', () => {
+    const { container } = render(<Tile title="OOP" count={28} progress={{ correct: 5, incorrect: 3, total: 40 }} />)
+    expect(container.querySelector('[data-count] [aria-hidden]')).toHaveTextContent(/^28$/)
+    expect(screen.getByRole('button', { name: /^OOP 28 questions\b/ })).toBeInTheDocument()
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+  })
+
+  it('puts its checkbox in the bottom right corner, leaving the top for the count', () => {
+    const { container } = render(<Tile title="OOP" count={4} progress={progress} selected />)
+    expect(container.querySelector('[data-checkbox]')).toHaveClass('-bottom-1.5', '-right-1.5')
+  })
+
+  it('can show a square for each question in place of the bar', () => {
+    const { container } = render(
+      <Tile title="OOP" count={4} progressStyle="squares" emphasis="unanswered" progress={progress} />,
+    )
+    expect(container.querySelectorAll('[data-segment]')).toHaveLength(4)
+    expect(container.querySelectorAll('[data-picked]')).toHaveLength(2)
   })
 })
 
@@ -332,7 +453,7 @@ describe('SourceTile', () => {
 describe('RandomTile', () => {
   it('shows whether it is selected', () => {
     render(<RandomTile selected />)
-    expect(screen.getByRole('button', { name: /Random/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^All sources/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

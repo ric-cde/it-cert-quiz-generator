@@ -1,13 +1,19 @@
 import clsx from 'clsx'
 import { useId, useState } from 'react'
-import type { SourceTrust } from '../../shared/domain'
-import type { ImportAction, PlannedQuestion } from '../../shared/import'
-import type { BankIssue } from '../../shared/question-bank-checks'
+import type { SourceTrust } from '@shared/domain'
+import type { ImportAction, PlannedQuestion } from '@shared/import'
+import type { BankIssue } from '@shared/question-bank-checks'
 import { AnswerOption } from './AnswerOption'
 import { Markdown } from './Markdown'
 import { QuestionExplanation } from './QuestionExplanation'
+import { plural } from '@/lib/quiz-words'
+import { Card } from './Card'
 
-const trustLabels: Record<SourceTrust, string> = { official: 'Official', third_party: 'Third-party', ai: 'Written by AI' }
+const trustLabels: Record<SourceTrust, string> = {
+  official: 'Official',
+  third_party: 'Third-party',
+  ai: 'Written by AI',
+}
 
 /** How far a source can be trusted. Official material stands out, because it's the ground truth. */
 export function TrustTag({ trust }: { trust: SourceTrust }) {
@@ -78,7 +84,7 @@ export function QuestionPreview({ planned }: { planned: PlannedQuestion }) {
   ]
 
   return (
-    <article className="rounded-lg border border-line bg-surface p-4">
+    <Card as="article" padding="sm">
       <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
         <Tag>{action === 'updated' ? `Updated: ${changes.join(', ')}` : actionLabels[action]}</Tag>
         {duplicateOf && <Tag tone="amber">Duplicate</Tag>}
@@ -104,6 +110,7 @@ export function QuestionPreview({ planned }: { planned: PlannedQuestion }) {
               kind={question.type === 'multi' ? 'multi' : 'single'}
               name={name}
               state={option.isCorrect ? 'correct-missed' : 'neutral'}
+              label={option.label}
               explanation={
                 option.explanationMd && (
                   <>
@@ -118,7 +125,10 @@ export function QuestionPreview({ planned }: { planned: PlannedQuestion }) {
           ))}
           {question.lockOptionOrder && <p className="text-xs text-ink-soft">Options stay in this order.</p>}
           {question.explanationMd && (
-            <QuestionExplanation markdown={question.explanationMd} generated={question.explanationOrigin === 'generated'} />
+            <QuestionExplanation
+              markdown={question.explanationMd}
+              generated={question.explanationOrigin === 'generated'}
+            />
           )}
         </div>
       )}
@@ -130,7 +140,7 @@ export function QuestionPreview({ planned }: { planned: PlannedQuestion }) {
           ))}
         </ul>
       )}
-    </article>
+    </Card>
   )
 }
 
@@ -139,15 +149,12 @@ export function ChapterPreview({ name, questions }: { name: string; questions: P
   const [open, setOpen] = useState(false)
   const warnings = questions.reduce((total, item) => total + item.warnings.length, 0)
   return (
-    <details
-      className="rounded-lg border border-line bg-paper"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
+    <details className="rounded-lg border border-line bg-paper" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer rounded-lg px-4 py-3 font-semibold focus-ring:outline-2 focus-ring:outline-offset-2 focus-ring:outline-accent">
         {name}{' '}
         <span className="text-sm font-normal text-ink-soft">
-          {questions.length} question{questions.length === 1 ? '' : 's'}
-          {warnings > 0 && `, ${warnings} warning${warnings === 1 ? '' : 's'}`}
+          {plural(questions.length, 'question')}
+          {warnings > 0 && `, ${plural(warnings, 'warning')}`}
         </span>
       </summary>
       {open && (

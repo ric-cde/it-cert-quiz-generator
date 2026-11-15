@@ -48,6 +48,7 @@ Each option:
 
 | Field | Required | Notes |
 |---|---|---|
+| `label` | no | The option's letter in the source, such as `A`, with no punctuation. Only when the source's explanations refer to options by letter. Every option of the question or none, each different. |
 | `bodyMd` | yes | Without a label such as "A." |
 | `isCorrect` | yes | `true` or `false` |
 | `explanationMd` | no | Shown under this option after answering |
@@ -89,10 +90,12 @@ Use a fence that names the language, with a blank line before it:
 
 The learner sees these right after answering, usually when they've got it wrong and want to know why. Text about one option stays under that option, and the options are shuffled. Text about the whole question shows below the options. The app shows whatever exists, so any of them can be blank.
 
+Keep the source's text in the shape it comes in. A source that explains each question in one passage keeps that passage whole on the question. Splitting it repeats sentences under several options, and leaves text such as "making this option and `char[]` correct", which reads badly out of context.
+
 - **Wrong option:** 1-3 sentences on why it's wrong, and ideally on the misunderstanding that makes it tempting. Keep any the source gives, but don't write new ones unless asked.
 - **Correct option:** 1-2 sentences, such as "Correct! `remove(int)` removes by index, so the value 2 goes." Keep any the source gives. Write new ones in modes B and C, and in mode A only if asked.
 - **Start with the point.** Don't restate the question.
-- **Never use letters or positions:** "B is wrong", "the option above", "as in the second choice". Name what the other option says if you need to.
+- **No letters or positions in text you write:** "B is wrong", "the option above", "as in the second choice". Name what the other option says if you need to. The exception is source text that refers to labelled options, which keeps its letters.
 - **Each one stands alone,** so don't write "see the previous explanation".
 
 ### Fitting source explanations to options
@@ -100,9 +103,9 @@ The learner sees these right after answering, usually when they've got it wrong 
 | The source has | Do this |
 |---|---|
 | Text for each option | Keep it on each option, marked `source`. |
-| Sentences each about a particular option, such as "C is wrong because..." | Put each on its option, keeping its words. Drop only linking words, and replace letters with content. |
-| Text about the answer or the question as a whole, such as "Answer: B. Because..." | Put it on the question's own `explanationMd`, marked `source`. Don't move it onto an option. |
-| A mix of both | Split it: sentences about one option go on that option, and the rest goes on the question. |
+| One passage per question that refers to options by letter, such as an answer appendix | Put the passage whole on the question's `explanationMd`, marked `source`, letters and all, keeping the answer letters it starts with. Give every option its `label`. No text on the options. |
+| Text about the answer or the question as a whole, with no letters, such as "Because records extend `Record`" | Put it on the question's own `explanationMd`, marked `source`. Don't move it onto an option. |
+| Text printed with one option and about only that option, with no letters | Keep it on that option. |
 | Nothing | Leave it blank in mode A, unless the user asks you to write some. The app can generate text later on request. |
 
 A source's "learn more" link, such as "revisit this topic", goes at the end of the question's explanation. Source text may run longer than 1-3 sentences. Keep it, since it's the source's explanation, but remove page references such as "see Chapter 4", which mean nothing in the app.
@@ -132,31 +135,15 @@ Output:
   "type": "multi",
   "category": "Working with Arrays and Collections",
   "bodyMd": "Which TWO are valid? (Choose two.)",
-  "explanationMd": "Both use a reference type that the compiler can work out.",
+  "explanationMd": "B, D. Both use a reference type that the compiler can work out. A is invalid because generics need reference types. C does not compile because the type can't be inferred from `null`.",
   "explanationOrigin": "source",
   "options": [
-    {
-      "bodyMd": "`List<int> a;`",
-      "isCorrect": false,
-      "explanationMd": "Invalid because generics need reference types.",
-      "explanationOrigin": "source"
-    },
-    {
-      "bodyMd": "`List<Integer> b;`",
-      "isCorrect": true
-    },
-    {
-      "bodyMd": "`var c = null;`",
-      "isCorrect": false,
-      "explanationMd": "This does not compile because the type can't be inferred from `null`.",
-      "explanationOrigin": "source"
-    },
-    {
-      "bodyMd": "`var d = new ArrayList<String>();`",
-      "isCorrect": true
-    }
+    { "label": "A", "bodyMd": "`List<int> a;`", "isCorrect": false },
+    { "label": "B", "bodyMd": "`List<Integer> b;`", "isCorrect": true },
+    { "label": "C", "bodyMd": "`var c = null;`", "isCorrect": false },
+    { "label": "D", "bodyMd": "`var d = new ArrayList<String>();`", "isCorrect": true }
   ]
 }
 ```
 
-The sentences about A and C go on those options, and the sentence about the answer as a whole goes on the question, all as `source`. Nothing new is written, because this is mode A and the user didn't ask. The options stay in the source's order, because the app does the shuffling.
+The answer and its explanation are one passage that refers to options by letter, so it stays whole on the question, starting with its answer letters, and each option gets its `label`. Nothing goes on the options, and nothing new is written, because this is mode A and the user didn't ask. The options stay in the source's order. The app keeps labelled options in that order by default, and if the user chooses to shuffle them, the labels move with them.

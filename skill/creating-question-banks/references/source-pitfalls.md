@@ -82,5 +82,5 @@ When answers are separate from questions, match them with care, since this is wh
 - **Check the number of answers:** "Choose two" with one letter in the key is a mismatch.
 - **Check the sense:** read the first few and last few in each section, and confirm each answer actually fits its question. An off-by-one error shows up as a run of nonsense.
 - **Check explanations against answers:** if a key's explanation discusses something not in the question, the numbering has slipped.
-- **Use the original letters while matching, before removing them,** and keep options in source order, so nothing can drift.
+- **Use the original letters while matching,** and keep options in source order, so nothing can drift. If the explanations refer to options by letter, the letters stay, as each option's `label`.
 - **Errata:** if the user has an errata list, apply it and mention this in your report.
