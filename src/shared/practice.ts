@@ -23,7 +23,7 @@ export type PracticeQuestion = {
   chapterId: number
   categoryId: number
   history: QuestionHistory
-  /** Free-form questions count towards progress but can't be asked until Stage 11. */
+  /** Free-form questions count towards progress but can't be asked until Stage 14. */
   freeForm?: true
   /** You've starred it. */
   starred?: true

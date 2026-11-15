@@ -2,7 +2,7 @@
 
 This is the work needed to deliver v1, in build order. Details are in `spec.md`. Each stage ends with something you can open and review before the next one starts.
 
-**Timeline:** OutSystems comes first and doubles as the real-world test of the app. Java OCP study follows later in November 2026. The stages are ordered to suit that: everything OutSystems needs comes first, then what Java OCP needs most. Question generation and in-app import come last because the skill for the Claude apps already covers getting questions in.
+**Timeline:** Stages 1 to 6 were built on the Windows laptop and used for OutSystems, which is now passed. Java SE 21 study comes next, on a phone while travelling, so Stages 7 to 9 move the app onto the eq14 home server, make it comfortable on a phone and add the mock exam. Stages 10 to 16 are the backlog: useful, but not needed for Java, and in no fixed order until one is picked up.
 
 **Size key:** S = small, M = medium, L = large. These compare the stages with each other and aren't time estimates.
 
@@ -15,15 +15,18 @@ This is the work needed to deliver v1, in build order. Details are in `spec.md`.
 | 3 | Database and data inspector | M | All tables visible, with your exams seeded |
 | 4 | Getting questions in | M | OutSystems practice exam loaded |
 | 5 | Taking a quiz | L | Full question and answer loop, with tracking |
-| 6 | Home and take-exam screens | L | **Ready for OutSystems practice** |
-| 7 | Smart selection and settings | S | Prioritise and sort working, with tunable weights |
-| 8 | Content management | M | Fix questions, rate sources, review flags |
-| 9 | Readiness | M | Weak spots, exam countdown, quiz history |
-| 10 | AI explanations | S | Explain a wrong answer when you ask |
-| 11 | Free-form questions | S | Type an answer and have Haiku judge it |
-| 12 | Mock exam | M | **Ready for Java OCP study** |
-| 13 | AI generation | M | Generate new questions in the app |
-| 14 | In-app document import | L | Upload a document and review the draft |
+| 6 | Home and take-exam screens | L | **Ready for OutSystems practice** (done, exam passed) |
+| 7 | Deploy via Tailscale | M | **Ready for Java SE 21 practice away from home**, on phone and laptop |
+| 8 | Optimise for mobile | M | Every study screen comfortable on a phone |
+| 9 | Mock exam | M | Timed Java mocks with pass or fail |
+| | **Backlog** | | |
+| 10 | Smart selection and settings | S | Prioritise and sort working, with tunable weights |
+| 11 | Content management | M | Fix questions, rate sources, review flags |
+| 12 | Readiness | M | Weak spots, exam countdown, quiz history |
+| 13 | AI explanations | S | Explain a wrong answer when you ask |
+| 14 | Free-form questions | S | Type an answer and have Haiku judge it |
+| 15 | AI generation | M | Generate new questions in the app |
+| 16 | In-app document import | L | Upload a document and review the draft |
 
 ## Testing throughout
 
@@ -55,7 +58,7 @@ Build the full schema, including users and roles. Seed the admin user and your t
 **You review:** the data model in table form, and the seeded categories.
 
 ### 4. Getting questions in
-Define the canonical JSON format for all question types, build the import screen with validation and preview, and write the skill for the Claude apps, which copies existing questions or writes new ones from uploaded material or web research. Free-form questions can be imported from here, but stay out of quizzes until Stage 11.
+Define the canonical JSON format for all question types, build the import screen with validation and preview, and write the skill for the Claude apps, which copies existing questions or writes new ones from uploaded material or web research. Free-form questions can be imported from here, but stay out of quizzes until Stage 14.
 
 **You review:** convert your OutSystems practice exam and check the result in the inspector, including the report of image questions left out. This tests the format against real, messy material before the quiz is built on it.
 
@@ -73,52 +76,75 @@ The live count and quiz creation share one selection function, with thorough tes
 
 > **Milestone:** start OutSystems practice here. Bugs and friction you find feed into the following stages.
 
-### 7. Smart selection and settings
-Add the priority score, easiest/hardest sorting, and the settings pane for adjusting weights. Rework how the Prioritise option is presented, because its purpose isn't clear in the preview.
+### 7. Deploy via Tailscale
+Move the app onto the eq14 so it runs all the time and can be reached from the phone and the laptop over Tailscale, and nowhere else.
 
-**You review:** whether the questions it picks feel right and the option makes sense, then tune the weights.
+- **Node 24:** installed with the fnm version manager and made the default for your user. The system's Node 18 stays in case something needs it.
+- **Live copy:** the built app runs directly on the eq14, with no Docker for now, as a service that starts at boot and restarts after a crash. It lives in its own folder, apart from the code being worked on.
+- **Address:** `https://eq14.codlet-fence.ts.net:8443`, published with Tailscale Serve. The main address stays with OpenClaw.
+- **Study data:** copied from the laptop's database into a folder outside the code. From then on the eq14 holds the only copy of your progress, backed up every night and before each release, with the newest 14 kept.
+- **Preview:** the code being worked on is always available at port 8444, with its own dev database, so a change prompted remotely through Claude Code can be seen before it's released.
+- **Release:** one command builds the code and puts it live, and only when you ask.
 
-### 8. Content management
-Add create, edit and delete for all content, an edit link inside quizzes, source ratings, the flagged list, and role checks.
+No login is added: only your own devices are on the tailnet, and the app listens only to Tailscale Serve, not to the home network.
 
-**You review:** fix a wrong answer mid-quiz, and confirm its history survives.
+**You review:** open the app on your phone with Wi-Fi off and on the laptop, answer a few questions on each, and see the same progress on both.
 
-### 9. Readiness
-Add category accuracy with links to practise weak areas, exam date countdown, readiness estimate, quiz history, and marking an exam as passed, which moves it down the home page list.
+> **Milestone:** start Java SE 21 practice here. Convert your Java question sets using the Stage 4 skill and load them at `/import`.
 
-**You review:** whether the readiness figure seems believable against what you feel you know.
+### 8. Optimise for mobile
+Go through every study screen at phone width and fix what's awkward: home, take-exam, the quiz with long code blocks, results and review. Planned in detail once Stage 7 is in use, because real use on the phone will show what matters.
 
-### 10. AI explanations
-Set up the shared Claude client, per-feature model config and usage logging. Add the Generate explanation button using Opus 5.5 with web search, showing sources. One call writes the missing per-answer text for every option on a question, and it's stored with the question. Generated text appears in place of that button, alongside Generate new explanation. Calls only happen when you press a button. Explain (ask about the question in your own words) and Hint, both icon-only on the question card, come with the AI features too; their short system prompts are reviewed first.
+**You review:** a full quiz on your phone, one-handed.
 
-**You review:** the quality of the per-answer text and the cost per question, and confirm that no API calls happen without a button press.
-
-### 11. Free-form questions
-Add the text answer field to the quiz screen, the Haiku judge, the question type filter, and judging from the results screen for at-the-end quizzes.
-
-**You review:** whether Haiku's verdicts are fair. Because verdicts are final, this judging prompt deserves careful testing.
-
-### 12. Mock exam
+### 9. Mock exam
 Add the timed mode with no feedback, multiple choice only, with marking questions to return to, pass/fail scoring, and links into results and history.
 
 **You review:** one full mock.
 
-> **Milestone:** ready to start Java OCP study. Convert your Java question sets using the Stage 4 skill.
+## Backlog
 
-### 13. AI generation
+Not needed for Java SE 21, so these wait. They keep their order for now, and any of them can be pulled forward.
+
+### 10. Smart selection and settings
+Add the priority score, easiest/hardest sorting, and the settings pane for adjusting weights. Rework how the Prioritise option is presented, because its purpose isn't clear in the preview.
+
+**You review:** whether the questions it picks feel right and the option makes sense, then tune the weights.
+
+### 11. Content management
+Add create, edit and delete for all content, an edit link inside quizzes, source ratings, the flagged list, and role checks.
+
+**You review:** fix a wrong answer mid-quiz, and confirm its history survives.
+
+### 12. Readiness
+Add category accuracy with links to practise weak areas, exam date countdown, readiness estimate, quiz history, and marking an exam as passed, which moves it down the home page list.
+
+**You review:** whether the readiness figure seems believable against what you feel you know.
+
+### 13. AI explanations
+Set up the shared Claude client, per-feature model config and usage logging. Add the Generate explanation button using Opus 5.5 with web search, showing sources. One call writes the missing per-answer text for every option on a question, and it's stored with the question. Generated text appears in place of that button, alongside Generate new explanation. Calls only happen when you press a button. Explain (ask about the question in your own words) and Hint, both icon-only on the question card, come with the AI features too; their short system prompts are reviewed first.
+
+**You review:** the quality of the per-answer text and the cost per question, and confirm that no API calls happen without a button press.
+
+### 14. Free-form questions
+Add the text answer field to the quiz screen, the Haiku judge, the question type filter, and judging from the results screen for at-the-end quizzes.
+
+**You review:** whether Haiku's verdicts are fair. Because verdicts are final, this judging prompt deserves careful testing.
+
+### 15. AI generation
 Build the generation form, the draft review screen, and source naming.
 
 **You review:** generated question quality.
 
-### 14. In-app document import
+### 16. In-app document import
 Add file and URL upload, document processing with chunking, category assignment, and reuse of the draft review screen for imports.
 
 **You review:** the hardest real document you have, such as a book with answers in an appendix.
-
 ## Needed from you
 
-- **Claude API access:** Stage 10 onwards needs an API key, and you may want a spending limit on it. Earlier stages don't need one.
+- **Stage 7, before it starts:** run the two `sudo tailscale serve` commands for ports 8443 and 8444 on the eq14, and send the laptop's database across with `scp`. Both are in the Stage 7 plan.
+- **Claude API access:** Stage 13 onwards needs an API key, and you may want a spending limit on it. Earlier stages don't need one.
 
 ## After v1
 
-Docker and home server deployment, and phone access over Tailscale. Login, multiple users and image support stay on the list only if they're ever needed.
+Login, multiple users and image support stay on the list only if they're ever needed.

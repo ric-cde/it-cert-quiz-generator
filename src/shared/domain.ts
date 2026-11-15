@@ -14,7 +14,7 @@ export const EXPLANATION_ORIGINS = ['source', 'generated'] as const
 export const QUIZ_MODES = ['study', 'mock'] as const
 export const FEEDBACK_MODES = ['after_each', 'at_end'] as const
 export type Feedback = (typeof FEEDBACK_MODES)[number]
-/** The take-exam Sort option. Easiest and hardest first arrive with Stage 7, and the final set is to be decided. */
+/** The take-exam Sort option. Easiest and hardest first arrive with Stage 10, and the final set is to be decided. */
 export const QUIZ_SORTS = ['random', 'source'] as const
 export type QuizSort = (typeof QUIZ_SORTS)[number]
 /**
@@ -65,7 +65,7 @@ export type QuizDefaults = {
   sort: 'random' | 'easiest' | 'hardest'
 }
 
-/** Equal weights are a placeholder until Stage 7 tunes them. */
+/** Equal weights are a placeholder until Stage 10 tunes them. */
 export const DEFAULT_PRIORITY_WEIGHTS: PriorityWeights = {
   difficulty: 1,
   failureRate: 1,

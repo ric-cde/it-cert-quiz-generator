@@ -12,7 +12,7 @@ export function QuestionExplanation({ markdown, generated = false }: { markdown:
   )
 }
 
-/** Shown once, quietly, when a missed question has no explanation anywhere. Stage 10 adds Generate here. */
+/** Shown once, quietly, when a missed question has no explanation anywhere. Stage 13 adds Generate here. */
 export function NoExplanation() {
   return <p className="mt-4 text-sm text-ink-soft">No explanation in this source yet.</p>
 }

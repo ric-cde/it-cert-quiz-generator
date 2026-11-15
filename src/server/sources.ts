@@ -61,7 +61,7 @@ export function listSources(db: Db): SourceSummary[] {
 
 /**
  * Removes a source completely, for clearing out a trial import. A source with attempts is refused,
- * because attempts are history that must survive. Stage 8 adds soft deletion for those.
+ * because attempts are history that must survive. Stage 11 adds soft deletion for those.
  */
 export function deleteSource(db: Db, id: number): 'deleted' | 'not-found' | 'has-attempts' {
   return db.transaction((tx) => {

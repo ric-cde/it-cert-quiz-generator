@@ -64,7 +64,7 @@ export function FilterControls() {
           <FilterField label="Prioritise">
             <Switch
               label={prioritise ? 'On' : 'Off'}
-              hint="Wording to be revisited in Stage 7"
+              hint="Wording to be revisited in Stage 10"
               checked={prioritise}
               onChange={setPrioritise}
             />

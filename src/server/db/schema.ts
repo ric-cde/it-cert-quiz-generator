@@ -64,7 +64,7 @@ export const exams = sqliteTable(
     // What the exam covers, as context when generating questions. Blank until filled in.
     descriptionMd: text('description_md'),
     syllabusMd: text('syllabus_md'),
-    // Blank until known. Stage 12's mock exam needs all three.
+    // Blank until known. Stage 9's mock exam needs all three.
     mockQuestionCount: integer('mock_question_count'),
     mockTimeLimitMin: integer('mock_time_limit_min'),
     passMarkPct: integer('pass_mark_pct'),

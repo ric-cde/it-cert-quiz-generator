@@ -26,7 +26,7 @@ export const attemptsIn = (db: Reader, quizId: number) =>
 
 /**
  * Of these questions, the ones that can still be asked: not removed, and not free-form until
- * Stage 11 (a re-import can turn one into free-form). A quiz already under way still asks a
+ * Stage 14 (a re-import can turn one into free-form). A quiz already under way still asks a
  * question flagged since it began, but a new quiz leaves flagged ones out.
  */
 function stillAskable(db: Reader, ids: number[], { includeFlagged }: { includeFlagged: boolean }) {

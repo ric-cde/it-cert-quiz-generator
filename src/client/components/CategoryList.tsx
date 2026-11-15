@@ -105,7 +105,7 @@ export function CategoryList({
               </select>
             ) : (
               category.status === 'unofficial' && (
-                <p className="text-xs text-ink-soft">Merging these comes with Manage, in Stage 8.</p>
+                <p className="text-xs text-ink-soft">Merging these comes with Manage, in Stage 11.</p>
               )
             )}
           </li>

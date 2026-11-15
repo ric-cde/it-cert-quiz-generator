@@ -5,6 +5,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { createApi } from './app'
 import { openDb } from './db'
+import { listenOptions } from './listen'
 
 const CLIENT_DIR = './dist/client'
 
@@ -32,7 +33,8 @@ export function startServer({
     app.get('*', serveStatic({ path: `${CLIENT_DIR}/index.html` }))
   }
 
-  serve({ fetch: app.fetch, port }, () => {
-    console.log(`Server running on http://localhost:${port}`)
+  const { hostname, url } = listenOptions(port)
+  serve({ fetch: app.fetch, port, hostname }, () => {
+    console.log(`Server running on ${url}`)
   })
 }

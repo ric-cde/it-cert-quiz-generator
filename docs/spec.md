@@ -12,8 +12,8 @@ This spec reflects the clarifying Q&A. It describes behaviour. How things look i
 
 | | In scope |
 |---|---|
-| **v1** | Runs locally on the laptop (frontend + backend). One seeded admin user. Everything in this spec. |
-| **v2** | Phone access to a home server over Tailscale (Docker). |
+| **v1** | Frontend and backend, built and first used locally on the laptop. From Stage 7 it runs on the eq14 home server and is reached from the phone and laptop over Tailscale. One seeded admin user. Everything in this spec. |
+| **Maybe later** | Running the server copy in Docker. |
 | **Only if ever needed** | Login and multiple users, with anonymous users on localStorage, synced to the database when they create an account. |
 | **Not planned yet** | Images in questions, drag/order/match formats, PWA, user data download/upload (backup means copying the SQLite file). |
 
@@ -35,7 +35,7 @@ Hierarchy: **Subject > Exam > Category > Source > Chapter**
 | Multi-answer | Checkboxes for "choose two" / "all that apply". The UI doesn't limit how many you can tick. Scored all-or-nothing: correct only if the selection exactly matches the correct options, so the right options plus an extra one is incorrect. |
 | Free-form | Text, multi-line or code answer with a stored model answer, judged by Claude Haiku. Stored in banks and mixed into quizzes like any other question. |
 
-Question and option text is Markdown, including code blocks. Each option has optional **per-answer text**, and a multiple choice question can also have an optional **explanation of the whole question**, shown below the options after answering. A source's single "Answer: B, because..." goes there rather than onto one option. The UI shows only the text that exists, wherever it is. When a question you missed has none at all, one muted line says so, and Stage 10's Generate button goes there. For a wrong answer, this says why it's wrong in 1-3 sentences. For the correct answer, it says something like "Correct! Here's why" in 1-2 sentences. Ideally a bank comes with this text, and if it doesn't, Claude can write it (see section 6). Options are shuffled unless the question is marked `lockOptionOrder`, for example for "all of the above".
+Question and option text is Markdown, including code blocks. Each option has optional **per-answer text**, and a multiple choice question can also have an optional **explanation of the whole question**, shown below the options after answering. A source's single "Answer: B, because..." goes there rather than onto one option. The UI shows only the text that exists, wherever it is. When a question you missed has none at all, one muted line says so, and Stage 13's Generate button goes there. For a wrong answer, this says why it's wrong in 1-3 sentences. For the correct answer, it says something like "Correct! Here's why" in 1-2 sentences. Ideally a bank comes with this text, and if it doesn't, Claude can write it (see section 6). Options are shuffled unless the question is marked `lockOptionOrder`, for example for "all of the above".
 
 **Option labels:** some sources, such as a study guide's answer appendix, explain each question in one paragraph that refers to options by letter ("options A and F are correct"). Splitting that text across shuffled options loses its sense, so such a bank keeps it whole as the question's explanation and gives each option its source `label`. The label shows beside the option. A question has labels on every option or on none, and options without labels show none.
 
@@ -113,7 +113,7 @@ Subjects, with their exams below them in seed order, and each exam's sources wit
 - An abandoned exam moves to a collapsed **Abandoned exams (N)** section at the very bottom, opened with one click.
 - A subject with no exams still being studied drops out of the list.
 
-Unfinished quizzes are listed at the top, one row each with a Resume button. Links to Generate, Import, Manage and Settings, and **Review flagged**, which for now lists questions whose answer was in doubt on import. Stage 8's flagged list joins it there.
+Unfinished quizzes are listed at the top, one row each with a Resume button. Links to Generate, Import, Manage and Settings, and **Review flagged**, which for now lists questions whose answer was in doubt on import. Stage 11's flagged list joins it there.
 
 - Clicking anywhere on an exam card opens its take-exam screen. Clicking a source's row opens it with just that source picked.
 
@@ -176,7 +176,7 @@ A live count always shows the result, for example **"20 of 137 available"**, or 
 - Each status option has a small count: how many questions that status would give for the tiles picked now, before the Max questions cap.
 - The question strip, the squares on tiles and the status counts can each be turned off in Settings.
 - Keyboard: Enter starts the quiz, R picks All sources, S moves through the status options, and M moves through 20, 50, 100 and Max, then into the number field. Each shows its key, unless Settings turns keyboard hints off.
-- Type and Prioritise arrive with the features they need: Type with free-form questions in Stage 11, and Prioritise and Easiest/Hardest in Stage 7.
+- Type and Prioritise arrive with the features they need: Type with free-form questions in Stage 14, and Prioritise and Easiest/Hardest in Stage 10.
 
 **The live count must be accurate.** "x of y available" is the source of truth: starting the quiz must give exactly x questions, drawn from those y. The screen loads the exam's question metadata once (ids, chapter, category and your history in a word, but no question text), about 30–40 KB for 500 questions, and works out every count and bar in the browser as you click. The server creates the quiz with the same shared functions on the same data, with automated tests covering combinations of tiles and filters.
 
@@ -187,7 +187,7 @@ Both feedback modes share these:
 - The question is shown in Markdown. Code blocks have icon-only copy and syntax highlighting buttons. The highlighting button changes a saved global setting, because reading plain code is part of preparing for an exam that has no highlighting.
 - Every question has **Flag** and, with permission, **Edit**, on the card's action row, in a fixed place just left of where **Next** appears, so they never move as the buttons around them change. (Back in the card's top right corner is the alternative, if the row gets crowded.) A flag's optional reason opens below the row.
 - Every question also has a **Star**, an icon with no word, just left of Flag: an outline until pressed, then filled, and pressed again to take it off. Stars are each user's own, a way to mark questions to come back to. They change nothing about the question or the quiz, and a starred question that's flagged or deleted is still left out. It can be turned off in Settings.
-- From Stage 10, icon-only **Hint** and **Explain** buttons sit in the same group (see section 6).
+- From Stage 13, icon-only **Hint** and **Explain** buttons sit in the same group (see section 6).
 - Once locked, your chosen option has a **Your answer** tag. Whether it's right is shown by its mark and colour. A correct option you didn't choose has a **Missed answer** tag and looks clearly different from one you did.
 - The progress bar has one segment per question: the current one pale, those not yet reached grey, and each one done coloured by how it went, green for correct, red for incorrect or revealed, and yellow for skipped. In at-the-end feedback an answered one stays in the accent colour, because nothing shows whether you were right, and only a skip is coloured.
 - Each attempt is saved as soon as it's made, so a quiz can be closed and resumed.
@@ -255,7 +255,7 @@ Create, edit and delete subjects, exams, categories, sources, Chapters and quest
 
 ### Settings
 
-Settings are saved in the database as soon as they change: syntax highlighting, option order (see section 2) and the feature flags now, and priority weights and quiz defaults from Stage 7. The choices the take-exam screen remembers for each exam stay in the browser (localStorage). Home links to Settings.
+Settings are saved in the database as soon as they change: syntax highlighting, option order (see section 2) and the feature flags now, and priority weights and quiz defaults from Stage 10. The choices the take-exam screen remembers for each exam stay in the browser (localStorage). Home links to Settings.
 
 **Feature flags:** extra behaviour beyond the core of this spec can be turned off in Settings. The core itself is never behind a flag. The flags are listed in one module, `src/shared/features.ts`, each with a label, a one-line description, a group and a default, and the Settings page is built from that list, so a new flag needs no other change. Only flags someone has changed are saved, so the rest follow their defaults. The server can check a flag too, for anything it must enforce, such as a feature that calls Claude. A flag is deleted once its feature is settled.
 
@@ -340,7 +340,7 @@ Models are set per feature in one config module, so changing one is a one-line e
 Implementation notes:
 
 - Use `@anthropic-ai/sdk` on the server only, with the API key in a git-ignored `.env`.
-- Use structured outputs with Zod validation for generation, extraction, judging and explanations. Stage 10 needs to confirm this combines cleanly with web search.
+- Use structured outputs with Zod validation for generation, extraction, judging and explanations. Stage 13 needs to confirm this combines cleanly with web search.
 - Log token usage for every call in `ai_calls`, visible in the data inspector.
 
 **Generation form:** exam, categories, count, target difficulty, format (multiple choice or free-form), and optional reference material (pasted or uploaded). The exam's stored description and syllabus are included as context. The target source defaults to **Generated**, can be renamed in place, and can be swapped for any existing source. The Chapter defaults to a dated batch label, such as "Batch 2026-11-04", and can be edited. Generated multiple choice questions include per-answer text for the correct options, and the rest can be generated on request, the same as the skill. Results always go to the draft review screen before saving.
@@ -390,7 +390,7 @@ Follows `stack.md`, including its CLAUDE.md rules.
 - **Location:** the repo lives in `C:\Projects`, outside OneDrive, because syncing a live SQLite database can lock or corrupt it.
 - **Databases:** `npm run dev` uses `data/dev/quiz.db` and `npm start` uses `data/quiz.db`, so test data can't mix with real study progress.
 - **Git-ignored data:** the database, question bank data and source documents are never committed. `.gitignore` covers `data/` and `.env` from Stage 1, and imported files are kept under `data/`.
-- **Responsive layout** from the start, so v2 on a phone needs little rework.
+- **Responsive layout** from the start, so the phone work in Stage 8 needs little rework.
 - **Automated tests** are part of every stage. Logic and API tests cover difficulty, selection and live counts, scoring (including extra options on multi-answer questions), progress and attempt recording, with a few end-to-end tests of core flows. Claude calls are mocked.
 
 ## 10. Risks
@@ -400,7 +400,7 @@ Follows `stack.md`, including its CLAUDE.md rules.
 
 ## 11. To revisit
 
-- **Prioritise:** it isn't clear from the UI what this option does. Revisit its wording and presentation, at the latest in Stage 7.
+- **Prioritise:** it isn't clear from the UI what this option does. Revisit its wording and presentation, at the latest in Stage 10.
 - **Explain and Hint prompts:** review the two short system prompts, and how Hint interacts with tracking, before they ship.
 - **Flag position:** it's on the action row for now, and may move back to the card's top right corner.
 - **Topics in the data model:** topics aren't selectable tiles, and won't be. Revisit how topics are captured, especially when Java's question sets arrive, so the data stays useful for stats and readiness.

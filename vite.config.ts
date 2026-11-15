@@ -14,7 +14,12 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: { '/api': `http://localhost:${DEV_API_PORT}` },
+    // HOST is set only on the eq14 (127.0.0.1), where Tailscale Serve publishes this dev server as
+    // the preview on port 8444. Unset, nothing changes on the laptop.
+    host: process.env.HOST || undefined,
+    // Vite refuses requests for hostnames it doesn't know; the preview arrives as *.ts.net.
+    allowedHosts: ['.ts.net'],
+    proxy: { '/api': `http://${process.env.HOST || 'localhost'}:${DEV_API_PORT}` },
   },
   build: {
     outDir: '../../dist/client',

@@ -5,7 +5,7 @@
 ## Core
 
 - **TypeScript, single package:** `src/server`, `src/client` and `src/shared`, with no monorepo tooling. Zod schemas used on both sides live in `src/shared`. The client imports server types with `import type` only, which keeps server code out of the browser bundle.
-- **Node 24:** already installed (v24.17.0), and supported by `better-sqlite3`.
+- **Node 24:** supported by `better-sqlite3`. On the laptop it's installed directly. On the eq14 it comes from the fnm version manager, pinned by `.node-version`, with the system's Node 18 left in place.
 
 ## Frontend
 
@@ -29,7 +29,7 @@
 
 ## Database
 
-- **SQLite via `better-sqlite3`:** one file on disk, with backup by copying it.
+- **SQLite via `better-sqlite3`:** one file on disk. Backups on the eq14 use SQLite's online backup, which is safe while the app is running.
 - **Drizzle ORM:** typed schema and queries, with generated migrations that preserve data.
 - **Migrations:** run `drizzle-kit generate` on schema changes. The server runs `migrate()` on startup.
 - **Location:** `./data` for `npm start` and `./data/dev` for `npm run dev`, either overridable with `DATA_DIR`.
@@ -45,9 +45,16 @@
 - **`node --watch --import tsx` + Vite via `concurrently`:** one command runs both, and Vite proxies `/api` to Hono. (`tsx watch` hangs under `concurrently` on this machine.)
 - **`npm run build && npm start`:** runs the production build locally for studying, so development changes can't interrupt a quiz.
 
-## Later (v2)
+## Running on the eq14
 
-- **Docker + `tailscale serve` on the eq14:** phone access to a home server. The single process and `DATA_DIR` keep this move simple.
+- **systemd user services, no Docker:** `quiz.service` runs the live copy from `~/apps/quiz/current`, with data in `~/quiz-data`. `quiz-preview.service` runs `npm run dev` in the repo. Both start at boot and restart after a crash.
+- **`tailscale serve`:** publishes the live copy as `https://eq14.codlet-fence.ts.net:8443` and the preview as `:8444`, to the tailnet only. Both servers set `HOST=127.0.0.1`, so the home network can't reach them directly.
+- **Releases:** `npm run deploy` checks, builds, backs up and swaps in a new release folder, then rolls back if it doesn't answer. Scripts are in `scripts/eq14/`.
+- **Backups:** a systemd timer backs up nightly, and every release backs up first. The newest 14 of each are kept in `~/quiz-data/backups`.
+
+## Maybe later
+
+- **Docker:** a container for the live copy, if the eq14 setup ever needs isolating.
 - **Auth:** only needed if the app is ever shared beyond Tailscale.
 
 ## CLAUDE.md rules

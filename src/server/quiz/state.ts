@@ -84,7 +84,7 @@ function currentQuestion(db: Reader, quiz: QuizRow, questionId: number, attempt:
 
   return {
     id: question.id,
-    // Free-form questions can't reach here until Stage 11, because `selectable` leaves them out.
+    // Free-form questions can't reach here until Stage 14, because `selectable` leaves them out.
     type: question.type as QuizQuestion['type'],
     bodyMd: question.bodyMd,
     source: row.source,
