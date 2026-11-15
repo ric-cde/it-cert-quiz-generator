@@ -658,12 +658,12 @@ describe('QuizPage', () => {
       renderQuiz()
       const user = userEvent.setup()
 
-      await user.click(await screen.findByRole('button', { name: 'End quiz' }))
+      await user.click(await screen.findByRole('button', { name: 'Exit' }))
       expect(postFinish).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'Keep going' }))
 
       expect(postFinish).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'End quiz' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Exit' })).toBeInTheDocument()
     })
 
     it('ends early and shows the score', async () => {
@@ -671,7 +671,7 @@ describe('QuizPage', () => {
       renderQuiz()
       const user = userEvent.setup()
 
-      await user.click(await screen.findByRole('button', { name: 'End quiz' }))
+      await user.click(await screen.findByRole('button', { name: 'Exit' }))
       await user.click(screen.getByRole('button', { name: 'Yes, end it' }))
 
       expect(await screen.findByRole('heading', { name: 'Quiz finished' })).toBeInTheDocument()
@@ -735,5 +735,63 @@ describe('QuizPage', () => {
       )
       expect(await screen.findByRole('alert')).toHaveTextContent("There's no such quiz.")
     })
+  })
+})
+
+describe('copying the question', () => {
+  it('copies just the question and options before answering, including any picked so far', async () => {
+    renderQuiz()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Second'))
+    await user.click(screen.getByRole('button', { name: 'Copy question' }))
+
+    expect(await navigator.clipboard.readText()).toBe(
+      'What is the question?\n\n(Choose one.)\n\n- First\n- Second\n- Third\n',
+    )
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+  })
+
+  it('adds the tags, the verdict and the explanations once answered', async () => {
+    renderQuiz(answered([2], 'incorrect', { explanationMd: 'First, because.' }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Copy question' }))
+
+    expect(await navigator.clipboard.readText()).toBe(
+      [
+        'What is the question?',
+        '',
+        '(Choose one.)',
+        '',
+        '- First [Missed answer, correct]',
+        '   Why first is right',
+        '- Second [Your answer, wrong]',
+        '   Why second is wrong',
+        '- Third',
+        '',
+        'Result: Incorrect',
+        '',
+        'Explanation:',
+        'First, because.',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('leaves out the answer while a quiz marked at the end is still going', async () => {
+    renderQuiz(quiz({ feedback: 'at_end' }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Copy question' }))
+    expect(await navigator.clipboard.readText()).not.toContain('[')
+  })
+})
+
+describe('the top of the quiz', () => {
+  it('has Exit beside the exam name, which asks before ending the quiz', async () => {
+    renderQuiz()
+    const user = userEvent.setup()
+    expect(await screen.findByRole('heading', { name: 'An exam' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Exit' }))
+    expect(screen.getByText(/End it now\?/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'End quiz' })).not.toBeInTheDocument()
   })
 })

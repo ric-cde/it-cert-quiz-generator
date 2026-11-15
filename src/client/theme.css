@@ -9,7 +9,17 @@
 @import './themes/exam-paper.css';
 
 /* `data-force` lets the gallery show hover and focus states without a mouse. */
-@custom-variant hocus (&:hover:not(:disabled, [aria-disabled='true']), &[data-force~='hover']);
+/* Hover only where there's a pointer that hovers: on a phone a tap would otherwise leave it stuck on. */
+@custom-variant hocus {
+  @media (hover: hover) {
+    &:hover:not(:disabled, [aria-disabled='true']) {
+      @slot;
+    }
+  }
+  &[data-force~='hover'] {
+    @slot;
+  }
+}
 @custom-variant focus-ring (&:focus-visible, &[data-force~='focus']);
 
 @layer base {
@@ -110,15 +120,50 @@
     font-size: 0.875rem;
     line-height: 1.6;
   }
+  @media (max-width: 39.999rem) {
+    .code-block pre {
+      font-size: 0.8125rem;
+    }
+  }
   .code-block code {
     font-family: var(--font-mono);
     font-size: inherit;
     line-height: inherit;
   }
 
+  /*
+    Wrapped code: each line is its own block, so long ones wrap with the rest of the line indented
+    under it (each line's --indent, plus a little), and lines beside the floated buttons wrap short of them rather than going underneath.
+  */
+  .code-block[data-wrap] pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+  }
+  .code-block[data-wrap] .line {
+    display: block;
+    padding-left: calc(var(--indent, 0ch) + 6ch);
+    text-indent: calc(-1 * (var(--indent, 0ch) + 6ch));
+  }
+  .code-block[data-wrap] .line:empty::after {
+    content: '\200b';
+  }
+
   /* Hand-drawn marks: each path's length is normalised to 1 with pathLength. */
   .mark-stroke {
     stroke-dasharray: 1;
+  }
+}
+
+/*
+  A phone zooms in on any text field with text under 16px when it's tapped, and doesn't zoom back
+  out. Outside the layers so it beats the size utilities.
+*/
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
   }
 }
 

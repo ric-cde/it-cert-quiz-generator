@@ -20,3 +20,15 @@
 2026-11-15 | eq14 | Nightly backup at 03:30 runs from the release, not the repo; backups kept 14 per kind (nightly, release, manual), owner-only | Claude | work in progress can't break backups, and frequent releases can't push out nightlies
 2026-11-15 | eq14 | /deploy commits before releasing, like /build-stable, and pushes only if asked | Claude | each release maps to a commit
 2026-11-15 | eq14 | Vite accepts *.ts.net hosts and listens on HOST when set, so the preview works through Tailscale Serve | Claude | Vite refuses unknown hostnames
+2026-11-15 | quiz (phone) | The quiz's action row (Submit, Reveal, star, flag, Next) is pinned to the bottom of the screen on a phone | me | Next always under the thumb, even on long code questions
+2026-11-15 | code blocks | New wrap button; long lines wrap by default on a phone, with a hanging indent from each line's own indent, remembered per browser | me | Sideways scrolling is awkward one-handed
+2026-11-15 | quiz (phone) | "Your answer"/"Missed answer" tags sit under the option text on a phone rather than beside it | Claude | Beside it squeezed the text into a narrow column
+2026-11-15 | phone | Code text 13px on a phone; Status options 2×2; exam title a size smaller; text fields 16px on touch screens | Claude | More code per line, no orphan option, no zoom-on-tap
+2026-11-15 | phone | Hover styles only on devices that hover | Claude | A tap left them stuck on
+2026-11-15 | phone | Web app manifest and home screen icon, opening full screen | Claude | Add to Home Screen gives an app-like quiz with no browser bars
+2026-11-15 | code blocks | One cog icon per code block opens its options: wrap, highlighting and full screen; highlighting moved into it too | me (highlighting: Claude) | Fewer icons over the code; highlighting is a code option like the others
+2026-11-15 | code blocks | Full screen view with a large X (and Escape) to close, on every screen size, as an in-page overlay rather than the browser's Fullscreen API | me (overlay: Claude) | Rotate the phone to read long code; iPhone Safari has no element full screen
+2026-11-15 | quiz | Copy button removed from code blocks; Copy question on the action row copies question and options, plus tags, verdict and explanations once answered or revealed | me | To paste a question into an LLM
+2026-11-15 | question viewer | Gets its own Copy JSON button, as code blocks no longer copy | Claude | Keeps the viewer's copy feature
+2026-11-15 | quiz (phone) | Question card edge to edge on a phone, with the pinned action row full width | me | Most room across
+2026-11-15 | quiz | "End quiz" renamed Exit and kept at the top right beside the exam name, which wraps | me | Saves a line on a phone

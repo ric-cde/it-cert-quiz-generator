@@ -18,7 +18,7 @@ export function CodeBlocks() {
       <Specimen label="Java" className="md:col-span-2">
         <CodeBlock code={JAVA_SAMPLE} language="java" />
       </Specimen>
-      <Specimen label="Long lines scroll">
+      <Specimen label="Long lines scroll, or wrap (the default on a phone) with the wrap button">
         <CodeBlock code={LONG_LINE} language="java" />
       </Specimen>
       <Specimen label="No language given">

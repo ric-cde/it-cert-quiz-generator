@@ -9,6 +9,7 @@ import { Button } from '@/components/Button'
 import { Kbd } from '@/components/Kbd'
 import { ReviewNotice } from '@/components/ReviewNotice'
 import { StarButton } from '@/components/StarButton'
+import { CopyButton } from '@/components/CopyButton'
 import { Verdict } from '@/components/Verdict'
 import { Specimen, SpecimenGrid } from '../kit'
 
@@ -52,6 +53,9 @@ export function QuizParts() {
       <Specimen label="Star: an outline until pressed, then filled. Yours alone, and it changes nothing else">
         <StarButton on={starred} label="Star this question" onChange={setStarred} />
       </Specimen>
+      <Specimen label="Copy question: the question and options, plus your answer and the explanations once they show. A tick once copied">
+        <CopyButton label="Copy question" text={() => 'What does this print?\n\n(Choose one.)\n\nA. 3\nB. 12\n'} />
+      </Specimen>
       <Specimen label="Difficulty (experimental): -1 and +1 move it a step, as do the down and up arrow keys">
         <DifficultyControl
           difficulty={difficulty}
@@ -74,6 +78,7 @@ export function QuizParts() {
         <QuizActions
           tools={
             <>
+              <CopyButton label="Copy question" text={() => 'A question'} />
               <StarButton on={starred} label="Star this question" onChange={setStarred} />
               <FlagButton flagged={false} onFlag={() => {}} onUnflag={() => {}} />
             </>

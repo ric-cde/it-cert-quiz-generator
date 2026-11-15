@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { AnswerOption, answerState } from '@/components/AnswerOption'
 import { Button } from '@/components/Button'
+import { CopyButton } from '@/components/CopyButton'
 import { DifficultyControl, MAX_DIFFICULTY, MIN_DIFFICULTY } from '@/components/DifficultyControl'
 import { FlagButton, FlagReason } from '@/components/FlagControl'
 import { Kbd } from '@/components/Kbd'
@@ -18,6 +19,7 @@ import { Verdict } from '@/components/Verdict'
 import { api } from '@/lib/api'
 import { useFeature } from '@/lib/features'
 import { HttpError, readJson } from '@/lib/http'
+import { questionAsText } from '@/lib/question-text'
 import { useShortcuts } from '@/lib/shortcuts'
 import type { QuizQuestion, QuizState } from '@shared/quiz'
 import { QuizResults } from './QuizResults'
@@ -38,6 +40,25 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
   const revealed = outcome?.kind === 'revealed'
   const flagged = question.flag !== null
   const hasText = Boolean(question.explanationMd) || question.options.some((option) => option.explanationMd)
+
+  /** What's on screen, to paste into an LLM. Answers and explanations only once they show. */
+  function questionText() {
+    return questionAsText({
+      bodyMd: question.bodyMd,
+      multi,
+      options: question.options.map((option) => {
+        const picked = locked ? outcome.selectedOptionIds.includes(option.id) : chosen.includes(option.id)
+        return {
+          label: option.label,
+          bodyMd: option.bodyMd,
+          explanationMd: option.explanationMd,
+          state: answerState({ chosen: picked, isCorrect: option.isCorrect ?? false, locked }),
+        }
+      }),
+      verdict: locked ? (revealed ? 'revealed' : outcome.result) : null,
+      explanationMd: question.explanationMd,
+    })
+  }
 
   // Keyboard and screen reader users start each question at its top.
   useEffect(() => top.current?.focus(), [])
@@ -167,7 +188,7 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
   })
 
   return (
-    <QuestionCard revealed={revealed}>
+    <QuestionCard revealed={revealed} fullWidthOnPhone>
       <div ref={top} tabIndex={-1} className="mb-4 outline-none">
         <p className="mb-1.5 text-xs break-words text-ink-soft">
           Question {quiz.position + 1} of {quiz.total} · {question.source}
@@ -222,8 +243,14 @@ function QuestionView({ quizId, quiz, question }: { quizId: string; quiz: QuizSt
       )}
 
       <QuizActions
+        pinned
         tools={
           <>
+            <CopyButton
+              label="Copy question"
+              title="Copy the question and its options, to paste into an LLM. Once answered, your answer and the explanations come too."
+              text={questionText}
+            />
             {difficulty !== null && (
               <DifficultyControl difficulty={difficulty} busy={adjusting.isPending} onChange={adjust} />
             )}
@@ -309,13 +336,14 @@ function EndQuiz({ quizId }: { quizId: string }) {
 
   if (!confirming) {
     return (
-      <Button size="sm" variant="ghost" onClick={() => setConfirming(true)}>
-        End quiz
+      <Button size="sm" variant="ghost" className="flex-none" onClick={() => setConfirming(true)}>
+        Exit
       </Button>
     )
   }
   return (
-    <span className="flex flex-wrap items-center justify-end gap-2 text-sm">
+    // On a phone, the question takes a line of its own below the exam's name.
+    <span className="flex flex-wrap items-center justify-end gap-2 text-sm max-sm:basis-full">
       {end.isError ? (
         <span role="alert" className="font-semibold text-wrong-ink">
           Couldn't end it: {end.error.message}
@@ -358,8 +386,9 @@ export function QuizPage() {
 
   return (
     <div>
-      <div className="mx-auto mb-3 flex max-w-2xl flex-wrap items-center justify-between gap-2">
-        <h1 className="min-w-0 text-sm font-semibold break-words text-ink-soft">{state.exam}</h1>
+      {/* Exit stays at the top right, beside the exam's name, which wraps if it must. */}
+      <div className="mx-auto mb-3 flex max-w-2xl flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <h1 className="min-w-0 flex-1 pt-1 text-sm font-semibold break-words text-ink-soft">{state.exam}</h1>
         <EndQuiz quizId={id} />
       </div>
       {/* A new question starts clean: no selection, a fresh timer and focus back at the top. */}

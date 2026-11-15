@@ -33,3 +33,23 @@ export function saveChoices(examId: string, choices: TakeExamChoices) {
     // Not remembered this time, which is harmless.
   }
 }
+
+const CODE_WRAP_KEY = 'code-wrap'
+
+/** Whether code blocks wrap long lines, if it's ever been chosen in this browser. */
+export function readCodeWrap(): boolean | null {
+  try {
+    const value = localStorage.getItem(CODE_WRAP_KEY)
+    return value === 'on' ? true : value === 'off' ? false : null
+  } catch {
+    return null
+  }
+}
+
+export function saveCodeWrap(wrap: boolean) {
+  try {
+    localStorage.setItem(CODE_WRAP_KEY, wrap ? 'on' : 'off')
+  } catch {
+    // Not remembered this time, which is harmless.
+  }
+}

@@ -135,6 +135,7 @@ export function TryIt() {
       </div>
 
       <QuizActions
+        pinned
         tools={<FlagButton flagged={flagged} onFlag={() => setFlagged(true)} onUnflag={() => setFlagged(false)} />}
         end={
           locked && (

@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { CodeBlock } from '@/components/CodeBlock'
+import { CopyButton } from '@/components/CopyButton'
 import { inputClass } from '@/components/Field'
 import { FilterField, FilterPanel } from '@/components/FilterPanel'
 import { ErrorText } from '@/components/Notices'
@@ -133,11 +134,14 @@ export function QuestionViewerPage() {
 
       {view && (
         <section aria-label="Questions" className="flex min-w-0 flex-col gap-2">
-          <p className="text-sm text-ink-soft" role="status">
-            {filters.length === 0
-              ? plural(view.total, 'question')
-              : `${view.count} of ${plural(view.total, 'question')}, matching any toggle that's on`}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-ink-soft" role="status">
+              {filters.length === 0
+                ? plural(view.total, 'question')
+                : `${view.count} of ${plural(view.total, 'question')}, matching any toggle that's on`}
+            </p>
+            {view.count > 0 && <CopyButton label="Copy JSON" text={() => view.json} />}
+          </div>
           {view.count > 0 && <CodeBlock code={view.json} />}
         </section>
       )}

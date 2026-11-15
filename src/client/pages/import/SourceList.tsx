@@ -36,7 +36,7 @@ function SourceRow({ source }: { source: SourceSummary }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
       <div className="flex min-w-0 items-start gap-3">
-        <span title={source.icon ? iconName(source.icon) : undefined}>
+        <span className="flex-none" title={source.icon ? iconName(source.icon) : undefined}>
           <SourceIcon icon={source.icon} className="mt-0.5 size-8" />
         </span>
         <div className="min-w-0">

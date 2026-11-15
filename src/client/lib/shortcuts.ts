@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react'
 
 /**
  * Whether a key press is for a screen's own shortcuts. They stay out of the way while typing, and
- * of the browser's own, such as Ctrl+R. Enter on a focused button or link already presses it.
+ * of the browser's own, such as Ctrl+R, and of open dialogs and menus. Enter on a focused button or link already presses it.
  */
 export function isForShortcuts(event: KeyboardEvent) {
   if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return false
   const target = event.target
   if (!(target instanceof HTMLElement)) return true
+  // A dialog or menu, such as a code block's full screen view or its options, has keys of its own.
+  if (target.closest('[role="dialog"], [role="menu"]')) return false
   if (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)
     return false
   if (target instanceof HTMLInputElement) return target.type === 'radio' || target.type === 'checkbox'

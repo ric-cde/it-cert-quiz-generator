@@ -10,6 +10,7 @@ export function Segmented<T extends string>({
   options,
   onChange,
   disabled = false,
+  className,
 }: {
   label: string
   value: T
@@ -17,6 +18,8 @@ export function Segmented<T extends string>({
   options: readonly { value: T; label: string; count?: number }[]
   onChange?: (value: T) => void
   disabled?: boolean
+  /** Extra layout, such as a grid on a phone for options that won't fit on one line. */
+  className?: string
 }) {
   const id = useId()
   return (
@@ -25,7 +28,7 @@ export function Segmented<T extends string>({
       value={value}
       disabled={disabled}
       onValueChange={(next) => onChange?.(next as T)}
-      className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-sunken p-0.5"
+      className={clsx('inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-sunken p-0.5', className)}
     >
       {options.map((option) => (
         <RadioGroup.Item

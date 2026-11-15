@@ -122,7 +122,7 @@ describe('QuestionViewerPage', () => {
     renderApp('/dev/questions?source=3')
     await screen.findByText('4 questions')
 
-    await user.click(screen.getByRole('button', { name: 'Copy code' }))
+    await user.click(screen.getByRole('button', { name: 'Copy JSON' }))
     expect(JSON.parse(await navigator.clipboard.readText())).toEqual(DATA)
   })
 

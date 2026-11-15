@@ -160,32 +160,35 @@ export function AnswerOption({
         onChange={() => onToggle?.()}
         className="sr-only"
       />
-      <span className="flex items-start gap-3">
-        <span className="flex size-6 flex-none items-center justify-center">
-          <Marker state={state} kind={kind} />
-        </span>
-        {label && (
-          <span
-            className={clsx('flex-none font-mono font-bold', state === 'neutral' ? 'text-ink-soft' : 'text-ink')}
-            data-option-label
-          >
-            {label}.
+      {/* On a phone the tag goes under the text, so it doesn't squeeze the text into a narrow column. */}
+      <span className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+        <span className="flex items-start gap-3">
+          <span className="flex size-6 flex-none items-center justify-center">
+            <Marker state={state} kind={kind} />
           </span>
-        )}
-        <span className={clsx('min-w-0 flex-1', state === 'neutral' && 'text-ink-soft')}>
+          {label && (
+            <span
+              className={clsx('flex-none font-mono font-bold', state === 'neutral' ? 'text-ink-soft' : 'text-ink')}
+              data-option-label
+            >
+              {label}.
+            </span>
+          )}
+        </span>
+        <span className={clsx('min-w-0', state === 'neutral' && 'text-ink-soft')}>
           {children}
           {meaning && <span className="sr-only">{meaning}</span>}
           {explanation && <span className="mt-1.5 block animate-rise text-sm text-ink-soft">{explanation}</span>}
         </span>
         {shortcut !== undefined && interactive && (
-          <span className="hidden flex-none sm:block">
+          <span className="hidden sm:block">
             <Kbd>{shortcut}</Kbd>
           </span>
         )}
         {tag && (
           <span
             className={clsx(
-              'flex-none rounded-full border bg-surface px-2 py-px text-xs font-bold whitespace-nowrap',
+              'col-start-2 justify-self-start rounded-full border bg-surface px-2 py-px text-xs font-bold whitespace-nowrap sm:col-start-3',
               tag.className,
             )}
           >

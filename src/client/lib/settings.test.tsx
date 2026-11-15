@@ -35,8 +35,12 @@ describe('the syntax highlighting setting', () => {
   it('starts from the saved setting', async () => {
     getSettings.mockImplementation(async () => respondWith(false))
     renderTwoBlocks()
-    const [toggle] = await screen.findAllByRole('button', { name: 'Syntax highlighting' })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    const user = userEvent.setup()
+    await user.click((await screen.findAllByRole('button', { name: 'Code options' }))[0]!)
+    expect(await screen.findByRole('menuitemcheckbox', { name: /Syntax highlighting/ })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.queryByText('highlighted:first')).not.toBeInTheDocument()
   })
@@ -47,7 +51,8 @@ describe('the syntax highlighting setting', () => {
     await screen.findByText('highlighted:first')
     await screen.findByText('highlighted:second')
 
-    await user.click(screen.getAllByRole('button', { name: 'Syntax highlighting' })[0]!)
+    await user.click(screen.getAllByRole('button', { name: 'Code options' })[0]!)
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Syntax highlighting/ }))
 
     expect(await screen.findByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
@@ -60,7 +65,8 @@ describe('the syntax highlighting setting', () => {
     renderTwoBlocks()
     await screen.findByText('highlighted:first')
 
-    await user.click(screen.getAllByRole('button', { name: 'Syntax highlighting' })[0]!)
+    await user.click(screen.getAllByRole('button', { name: 'Code options' })[0]!)
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Syntax highlighting/ }))
 
     await waitFor(() => expect(patchSettings).toHaveBeenCalled())
     expect(await screen.findByText('highlighted:first')).toBeInTheDocument()

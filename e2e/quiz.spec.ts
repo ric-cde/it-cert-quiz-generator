@@ -163,7 +163,7 @@ test('ending early keeps what was answered', async ({ page }) => {
   await page.getByRole('button', { name: /Reveal answer/ }).click()
   await expect(page.getByText('Revealed', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'End quiz' }).click()
+  await page.getByRole('button', { name: 'Exit' }).click()
   await page.getByRole('button', { name: 'Yes, end it' }).click()
 
   await expect(page.getByRole('heading', { name: 'Quiz finished' })).toBeVisible()

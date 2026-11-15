@@ -8,10 +8,16 @@ import { cardClass } from './Card'
  */
 export function QuestionCard({
   revealed = false,
+  fullWidthOnPhone = false,
   footer,
   children,
 }: {
   revealed?: boolean
+  /**
+   * Edge to edge on a phone, with no side borders, for the most room across. Only for a card that
+   * sits straight in the page, whose side padding it reaches out over.
+   */
+  fullWidthOnPhone?: boolean
   footer?: ReactNode
   children: ReactNode
 }) {
@@ -20,7 +26,9 @@ export function QuestionCard({
       data-revealed={revealed || undefined}
       className={clsx(
         cardClass({ padding: 'lg', tone: revealed ? 'sunken' : 'surface' }),
-        'mx-auto max-w-2xl transition-colors duration-200',
+        // A little narrower padding on a phone. QuizActions' pinned row reaches out over it.
+        'mx-auto max-w-2xl transition-colors duration-200 max-sm:px-4',
+        fullWidthOnPhone && 'max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0',
       )}
     >
       {children}

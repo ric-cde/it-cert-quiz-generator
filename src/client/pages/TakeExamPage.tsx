@@ -201,7 +201,7 @@ export function TakeExamPage() {
         <div className="mt-2 flex items-center gap-3">
           <ExamIcon subject={exam.subject} name={exam.name} className="size-10" />
           <div className="min-w-0">
-            <h1 className="text-2xl break-words">{exam.name}</h1>
+            <h1 className="text-xl break-words sm:text-2xl">{exam.name}</h1>
             <p className="text-sm text-ink-soft">{exam.subject}</p>
           </div>
         </div>
@@ -221,6 +221,8 @@ export function TakeExamPage() {
                   value={selection.status}
                   options={statusOptions}
                   onChange={(status) => change({ status })}
+                  // Two by two on a phone, rather than three and one left over.
+                  className="max-sm:grid max-sm:grid-cols-2"
                 />
               </FilterField>
               {features.starredQuestions && (

@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnswerOption, answerState } from './AnswerOption'
 import { Button } from './Button'
-import { CodeBlock } from './CodeBlock'
+import { CodeBlock, indentOf, wrappableHtml, wrappableLines } from './CodeBlock'
 import { LiveCount, SelectionStrip } from './LiveCount'
 import { MaxQuestionsPicker, nextMaxQuestions, parseMaxQuestions } from './MaxQuestions'
 import { Segmented } from './Segmented'
@@ -11,6 +11,7 @@ import { Switch } from './Switch'
 import { Markdown } from './Markdown'
 import { ProgressBar, progressSegments, ProgressSquares } from './ProgressBar'
 import { QuestionCard } from './QuestionCard'
+import { QuizActions } from './QuizActions'
 import { RandomTile, SourceTile, Tile } from './Tile'
 
 vi.mock('@/lib/highlight', () => ({
@@ -26,6 +27,7 @@ vi.mock('@/lib/settings', () => ({ useSyntaxHighlighting: () => syntax }))
 beforeEach(() => {
   Object.assign(syntax, { enabled: true, ready: true })
   syntax.toggle.mockClear()
+  localStorage.clear()
 })
 
 describe('answerState', () => {
@@ -177,25 +179,21 @@ describe('AnswerOption', () => {
     expect(screen.queryByText('3')).not.toBeInTheDocument()
   })
 
-  it('does not select the answer when its code is copied', async () => {
-    const onToggle = vi.fn()
-    render(
-      <AnswerOption kind="single" name="q" state="idle" onToggle={onToggle}>
-        <CodeBlock code="int x;" />
-      </AnswerOption>,
-    )
-    await userEvent.click(screen.getByRole('button', { name: 'Copy code' }))
-    expect(onToggle).not.toHaveBeenCalled()
-  })
-
-  it('does not select the answer when its highlighting is toggled', async () => {
+  it("does not select the answer when its code's options are used", async () => {
+    const user = userEvent.setup()
     const onToggle = vi.fn()
     render(
       <AnswerOption kind="single" name="q" state="idle" onToggle={onToggle}>
         <CodeBlock code="int x;" language="java" />
       </AnswerOption>,
     )
-    await userEvent.click(screen.getByRole('button', { name: 'Syntax highlighting' }))
+    await user.click(screen.getByRole('button', { name: 'Code options' }))
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Syntax highlighting/ }))
+    await user.click(screen.getByRole('button', { name: 'Code options' }))
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Wrap long lines/ }))
+    await user.click(screen.getByRole('button', { name: 'Code options' }))
+    await user.click(await screen.findByRole('menuitem', { name: /Full screen/ }))
+    await user.click(await screen.findByRole('button', { name: 'Close full screen' }))
     expect(syntax.toggle).toHaveBeenCalledOnce()
     expect(onToggle).not.toHaveBeenCalled()
   })
@@ -458,6 +456,12 @@ describe('RandomTile', () => {
 })
 
 describe('CodeBlock', () => {
+  /** Opens a code block's cog menu. The first block's, if there are several. */
+  async function openOptions(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getAllByRole('button', { name: 'Code options' })[0]!)
+  }
+  const option = (name: RegExp) => screen.findByRole('menuitemcheckbox', { name })
+
   it('shows plain code when the language is not highlighted', async () => {
     render(<CodeBlock code="plain text" language="cobol" />)
     expect(screen.getByText('plain text')).toBeInTheDocument()
@@ -468,46 +472,146 @@ describe('CodeBlock', () => {
     expect(await screen.findByText('highlighted:int x;')).toBeInTheDocument()
   })
 
-  it('shows plain code when syntax highlighting is off', async () => {
+  it('shows plain code when syntax highlighting is off, and the option as off', async () => {
+    const user = userEvent.setup()
     syntax.enabled = false
     render(<CodeBlock code="int x;" language="java" />)
     expect(screen.getByText('int x;')).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve))
     expect(screen.queryByText('highlighted:int x;')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Syntax highlighting' })).toHaveAttribute('aria-pressed', 'false')
+    await openOptions(user)
+    expect(await option(/Syntax highlighting/)).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('shows the toggle as pressed while highlighting is on', () => {
+  it('turns highlighting off from the menu', async () => {
+    const user = userEvent.setup()
     render(<CodeBlock code="int x;" language="java" />)
-    expect(screen.getByRole('button', { name: 'Syntax highlighting' })).toHaveAttribute('aria-pressed', 'true')
+    await openOptions(user)
+    const highlighting = await option(/Syntax highlighting/)
+    expect(highlighting).toHaveAttribute('aria-checked', 'true')
+    await user.click(highlighting)
+    expect(syntax.toggle).toHaveBeenCalledOnce()
   })
 
-  it('has no toggle where it could change nothing', () => {
+  it('offers no highlighting where it could change nothing, or until the setting has loaded', async () => {
+    const user = userEvent.setup()
     render(<CodeBlock code="plain text" />)
-    expect(screen.queryByRole('button', { name: 'Syntax highlighting' })).not.toBeInTheDocument()
+    await openOptions(user)
+    await option(/Wrap long lines/)
+    expect(screen.queryByRole('menuitemcheckbox', { name: /Syntax highlighting/ })).not.toBeInTheDocument()
   })
 
-  it('has no toggle, and plain code, until the setting has loaded', async () => {
+  it('shows plain code until the setting has loaded', () => {
     Object.assign(syntax, { enabled: false, ready: false })
     render(<CodeBlock code="int x;" language="java" />)
-    expect(screen.queryByRole('button', { name: 'Syntax highlighting' })).not.toBeInTheDocument()
     expect(screen.getByText('int x;')).toBeInTheDocument()
   })
 
-  it('copies the code and confirms', async () => {
-    const user = userEvent.setup()
+  it('has no copy button, as the quiz copies the whole question', () => {
     render(<CodeBlock code="int x;" />)
-    await user.click(screen.getByRole('button', { name: 'Copy code' }))
-    expect(await navigator.clipboard.readText()).toBe('int x;')
-    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Copy/ })).not.toBeInTheDocument()
   })
 
-  it('says so when copying fails', async () => {
+  it('scrolls long lines on a wide screen until wrapping is turned on, and remembers it', async () => {
     const user = userEvent.setup()
-    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'))
+    const { container } = render(<CodeBlock code="int x;" />)
+    expect(container.querySelector('.code-block')).not.toHaveAttribute('data-wrap')
+    await openOptions(user)
+    const wrapOption = await option(/Wrap long lines/)
+    expect(wrapOption).toHaveAttribute('aria-checked', 'false')
+
+    await user.click(wrapOption)
+    expect(container.querySelector('.code-block')).toHaveAttribute('data-wrap')
+    expect(localStorage.getItem('code-wrap')).toBe('on')
+  })
+
+  it('wraps long lines on a phone, until turned off', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    try {
+      const user = userEvent.setup()
+      const { container } = render(<CodeBlock code="int x;" />)
+      expect(container.querySelector('.code-block')).toHaveAttribute('data-wrap')
+      await openOptions(user)
+      await user.click(await option(/Wrap long lines/))
+      expect(container.querySelector('.code-block')).not.toHaveAttribute('data-wrap')
+      expect(localStorage.getItem('code-wrap')).toBe('off')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('turns wrapping on and off in every code block together', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <>
+        <CodeBlock code="int x;" />
+        <CodeBlock code="int y;" />
+      </>,
+    )
+    await openOptions(user)
+    await user.click(await option(/Wrap long lines/))
+    expect(container.querySelectorAll('.code-block[data-wrap]')).toHaveLength(2)
+  })
+
+  it('shows each line of wrapped code on its own, keeping blank lines', async () => {
+    localStorage.setItem('code-wrap', 'on')
+    const { container } = render(<CodeBlock code={'a\n\n  b'} />)
+    const lines = [...container.querySelectorAll('.line')]
+    expect(lines.map((line) => line.textContent)).toEqual(['a', '', '\u00a0\u00a0b'])
+    expect((lines[2] as HTMLElement).style.getPropertyValue('--indent')).toBe('2ch')
+  })
+
+  it('opens the code full screen, and closes it with the X', async () => {
+    const user = userEvent.setup()
     render(<CodeBlock code="int x;" />)
-    await user.click(screen.getByRole('button', { name: 'Copy code' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Copy failed' })).toBeInTheDocument())
+    await openOptions(user)
+    await user.click(await screen.findByRole('menuitem', { name: /Full screen/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Code' })
+    expect(within(dialog).getByText('int x;')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Close full screen' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('closes full screen with Escape', async () => {
+    const user = userEvent.setup()
+    render(<CodeBlock code="int x;" />)
+    await openOptions(user)
+    await user.click(await screen.findByRole('menuitem', { name: /Full screen/ }))
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+})
+
+describe('wrapping code', () => {
+  it('measures indents, counting a tab as four', () => {
+    expect(indentOf('code')).toBe(0)
+    expect(indentOf('  code')).toBe(2)
+    expect(indentOf('\t code')).toBe(5)
+  })
+
+  it('makes indents unbreakable in plain code', () => {
+    expect(wrappableLines('x\n\ty')).toEqual([
+      { indent: 0, text: 'x' },
+      { indent: 4, text: '\u00a0'.repeat(4) + 'y' },
+    ])
+  })
+
+  it('joins highlighted lines and gives each its indent, which cannot break', () => {
+    const html =
+      '<pre class="shiki"><code><span class="line"><span style="color:#fff">if</span></span>\n' +
+      '<span class="line"><span style="color:#fff">  go</span></span>\n<span class="line"></span></code></pre>'
+    expect(wrappableHtml(html, 'if\n  go\n')).toBe(
+      '<pre class="shiki"><code><span style="--indent:0ch" class="line"><span style="color:#fff">if</span></span>' +
+        '<span style="--indent:2ch" class="line"><span style="color:#fff">&nbsp;&nbsp;go</span></span>' +
+        '<span style="--indent:0ch" class="line"></span></code></pre>',
+    )
   })
 })
 
@@ -519,10 +623,10 @@ describe('Markdown', () => {
     expect(screen.getByRole('table')).toBeInTheDocument()
   })
 
-  it('renders fenced code with the copy button', () => {
+  it('renders fenced code as a code block, with its options', () => {
     render(<Markdown>{'```\nint x;\n```'}</Markdown>)
     expect(screen.getByText('int x;')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Code options' })).toBeInTheDocument()
   })
 
   it('passes the language through to the highlighter', async () => {
@@ -653,5 +757,17 @@ describe('nextMaxQuestions', () => {
     expect(nextMaxQuestions(100)).toBe('max')
     expect(nextMaxQuestions('max')).toBeNull()
     expect(nextMaxQuestions(7)).toBe(20)
+  })
+})
+
+describe('QuizActions', () => {
+  it('pins to the bottom of a phone screen only when asked, as it must sit in a question card to', () => {
+    const { container, rerender } = render(<QuizActions end={<Button>Next</Button>} />)
+    const row = () => container.firstElementChild as HTMLElement
+    expect(row()).not.toHaveAttribute('data-pinned')
+    expect(row().className).not.toContain('sticky')
+    rerender(<QuizActions pinned end={<Button>Next</Button>} />)
+    expect(row()).toHaveAttribute('data-pinned')
+    expect(row().className).toContain('max-sm:sticky')
   })
 })

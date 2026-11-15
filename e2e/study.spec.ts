@@ -153,7 +153,7 @@ test('the status filter counts only what it should', async ({ page }) => {
   // Reveal one, which counts as a miss.
   await page.getByRole('button', { name: /Reveal answer/ }).click()
   await expect(page.getByText('Revealed', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'End quiz' }).click()
+  await page.getByRole('button', { name: 'Exit' }).click()
   await page.getByRole('button', { name: 'Yes, end it' }).click()
 
   await page.getByRole('link', { name: 'Practise again' }).click()
